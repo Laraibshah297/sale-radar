@@ -1,0 +1,104 @@
+{
+ "updated": "2026-11-04T09:03+00:00",
+ "stores": [
+  {
+   "name": "Outfitters",
+   "url": "https://outfitters.com.pk",
+   "category": "Fashion",
+   "products": 3766,
+   "on_sale": 2396,
+   "ok": true,
+   "error": null
+  },
+  {
+   "name": "Breakout",
+   "url": "https://breakout.com.pk",
+   "category": "Fashion",
+   "products": 2159,
+   "on_sale": 579,
+   "ok": true,
+   "error": null
+  },
+  {
+   "name": "Sapphire",
+   "url": "https://pk.sapphireonline.pk",
+   "category": "Fashion",
+   "products": 0,
+   "on_sale": 0,
+   "ok": false,
+   "error": "HTTP Error 404: Not Found"
+  },
+  {
+   "name": "Generation",
+   "url": "https://generation.com.pk",
+   "category": "Fashion",
+   "products": 5000,
+   "on_sale": 4473,
+   "ok": true,
+   "error": null
+  },
+  {
+   "name": "Limelight",
+   "url": "https://www.limelight.pk",
+   "category": "Fashion",
+   "products": 5000,
+   "on_sale": 4999,
+   "ok": true,
+   "error": null
+  },
+  {
+   "name": "Gul Ahmed",
+   "url": "https://www.gulahmedshop.com",
+   "category": "Fashion",
+   "products": 5000,
+   "on_sale": 3907,
+   "ok": true,
+   "error": null
+  },
+  {
+   "name": "Alkaram",
+   "url": "https://www.alkaramstudio.com",
+   "category": "Fashion",
+   "products": 1586,
+   "on_sale": 966,
+   "ok": true,
+   "error": null
+  },
+  {
+   "name": "Nishat Linen",
+   "url": "https://www.nishatlinen.com",
+   "category": "Fashion",
+   "products": 2747,
+   "on_sale": 86,
+   "ok": true,
+   "error": null
+  },
+  {
+   "name": "Bonanza Satrangi",
+   "url": "https://www.bonanzasatrangi.com",
+   "category": "Fashion",
+   "products": 5000,
+   "on_sale": 3673,
+   "ok": true,
+   "error": null
+  },
+  {
+   "name": "Zellbury",
+   "url": "https://www.zellbury.com",
+   "category": "Fashion",
+   "products": 5000,
+   "on_sale": 0,
+   "ok": true,
+   "error": null
+  },
+  {
+   "name": "Audionic",
+   "url": "https://audionic.co",
+   "category": "Electronics",
+   "products": 99,
+   "on_sale": 86,
+   "ok": true,
+   "error": null
+  }
+ ]
+}
