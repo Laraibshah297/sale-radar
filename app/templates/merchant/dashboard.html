@@ -1,0 +1,30 @@
+{% extends "merchant/_layout.html" %}{% block admin %}
+<h1>{{ r.name }}</h1>
+{% if r.status == 'pending' %}<div class="notice">Your store is waiting for verification. You can upload products now; they go live once we approve your store.</div>{% elif r.status == 'suspended' %}<div class="flash err">Your store is suspended. Please contact us.</div>{% endif %}
+<div class="kpis">
+ <div class="kpi"><b>{{ offers|length }}</b><span>Active offers{% if r.plan=='free' %} (limit {{ limit }}){% endif %}</span></div>
+ <div class="kpi"><b>{{ clicks }}</b><span>Shoppers sent to your site (30 days)</span></div>
+ <div class="kpi"><b>{{ stale|length }}</b><span>Stale offers: please update</span></div>
+ <div class="kpi"><b>{{ review|length }}</b><span>Waiting for product matching</span></div>
+</div>
+<h2>Update your products</h2>
+<div class="cols">
+<form class="card form" method="post" action="/merchant/upload" enctype="multipart/form-data"><input type="hidden" name="csrf" value="{{ csrf }}">
+<h3>Upload CSV</h3><p class="small" style="margin:0">Export from Excel or Google Sheets as CSV. <a href="/merchant/template.csv">Download the template</a> · <a href="/merchant/export.csv">Download my current offers</a></p>
+<input type="file" name="file" accept=".csv,text/csv" required><button class="primary">Upload</button></form>
+<form class="card form" method="post" action="/merchant/feed"><input type="hidden" name="csrf" value="{{ csrf }}">
+<h3>Automatic feed {% if r.plan != 'pro' %}<span class="badge spon">Pro</span>{% endif %}</h3>
+<p class="small" style="margin:0">Publish your Google Sheet as CSV (File → Share → Publish to web → CSV) and paste the link. We import it every few hours.</p>
+<input name="feed_url" value="{{ r.feed_url or '' }}" placeholder="https://docs.google.com/spreadsheets/.../pub?output=csv" {{ 'disabled' if r.plan != 'pro' }}>
+<button {{ 'disabled' if r.plan != 'pro' }}>Save feed URL</button></form>
+</div>
+{% if r.feed_url and r.plan == 'pro' %}<form method="post" action="/merchant/feed/run" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="small">Import feed now</button></form>{% endif %}
+<h2>Feed health</h2>{% include "admin/_runs.html" %}
+{% if stale %}<h2>Stale offers</h2><p class="small mute">Prices older than {{ settings.STALE_HOURS }} hours are marked as stale to shoppers. Re-upload your file to refresh them.</p>
+<div class="tablewrap"><table><tr><th>Product</th><th>Price</th><th>Last checked</th></tr>{% for o in stale[:50] %}<tr><td>{{ o.retailer_title }}</td><td>{{ o.price|pkr }}</td><td>{{ o.checked_at|ago }}</td></tr>{% endfor %}</table></div>{% endif %}
+<h2>Top products by clicks (30 days)</h2>
+<div class="tablewrap"><table><tr><th>Product</th><th>Clicks</th></tr>{% for t,c in top %}<tr><td>{{ t }}</td><td>{{ c }}</td></tr>{% else %}<tr><td colspan=2 class="mute">No clicks yet</td></tr>{% endfor %}</table></div>
+{% if r.plan == 'pro' and daily %}<h2>Daily clicks</h2><div class="tablewrap"><table>{% for d,c in daily %}<tr><td>{{ d }}</td><td>{{ c }}</td></tr>{% endfor %}</table></div>{% endif %}
+<h2>Plans</h2><div class="cols">{% for k,p in plans.items() %}<div class="card" style="{{ 'border-color:var(--brand2)' if r.plan==k }}"><h3>{{ p.name }} {% if r.plan==k %}<span class="badge good">Current</span>{% endif %}</h3><p class="price">{{ p.price }}</p><ul class="small">{% for f in p.features %}<li>{{ f }}</li>{% endfor %}</ul>
+{% if r.plan != k and k == 'pro' %}<a class="btn primary small" href="/contact?kind=contact">Upgrade: contact us</a>{% endif %}</div>{% endfor %}</div>
+{% endblock %}

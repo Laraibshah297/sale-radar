@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{% if category %}{{ category.name }} prices in Pakistan{% elif q %}{{ q }}: price comparison{% else %}Search{% endif %} | {{ settings.SITE_NAME }}{% endblock %}
+{% block head %}{% if q or page > 1 %}<meta name="robots" content="noindex,follow">{% endif %}{% endblock %}
+{% block content %}
+<h1>{% if category %}{{ category.name }} prices in Pakistan{% elif q %}Results for “{{ q }}”{% else %}All products{% endif %}</h1>
+<p class="mute">{{ total }} {{ _("results") }}{% if fuzzy %} · showing close matches for your spelling{% endif %}</p>
+{% if sponsored %}<div class="card" style="margin-bottom:14px"><span class="badge spon">{{ _("Sponsored") }}</span>
+  {% for s in sponsored %}<a href="/store/{{ s.retailer.slug }}" style="margin-left:8px">{{ s.name }} at {{ s.retailer.name }}</a>{% endfor %}</div>{% endif %}
+<div class="layout">
+<aside>
+<form class="card filters" method="get">
+  {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+  <h3>{{ _("Filters") }}</h3>
+  <label>{{ _("Sort") }}</label>
+  <select name="sort">
+    {% for k,l in [('relevance','Best match'),('price_asc','Lowest item price'),('delivered','Lowest delivered price'),('price_desc','Highest price'),('newest','Newest update')] %}
+    <option value="{{k}}" {{ 'selected' if f.sort==k }}>{{l}}</option>{% endfor %}
+  </select>
+  <label>{{ _("Brand") }}</label>
+  <select name="brand"><option value="">All</option>{% for b in facets.brands %}<option {{ 'selected' if f.brand==b }}>{{ b }}</option>{% endfor %}</select>
+  <label>{{ _("Store") }}</label>
+  <select name="store"><option value="">All</option>{% for r in retailers %}<option value="{{ r.id }}" {{ 'selected' if f.store==r.id }}>{{ r.name }}</option>{% endfor %}</select>
+  <label>{{ _("Price") }} (PKR)</label>
+  <div class="row2"><input name="min" value="{{ f.min }}" placeholder="Min" inputmode="numeric"><input name="max" value="{{ f.max }}" placeholder="Max" inputmode="numeric"></div>
+  {% if facets.storage %}<label>Storage</label><select name="storage"><option value="">Any</option>{% for s in facets.storage %}<option {{ 'selected' if f.storage==s }}>{{ s }}</option>{% endfor %}</select>{% endif %}
+  {% if facets.ram %}<label>RAM</label><select name="ram"><option value="">Any</option>{% for s in facets.ram %}<option {{ 'selected' if f.ram==s }}>{{ s }}</option>{% endfor %}</select>{% endif %}
+  <label><input type="checkbox" name="stock" value="1" {{ 'checked' if f.stock }}> {{ _("In stock") }} only</label>
+  <p><button class="primary" style="width:100%">{{ _("Apply") }}</button></p>
+</form>
+</aside>
+<section>
+{% if cards %}<div class="grid">{% for c in cards %}{% set from_search = q %}{% include "_card.html" %}{% endfor %}</div>
+{% if pages > 1 %}<div class="pager">{% for n in range(1, pages+1) %}<a class="btn small {{ 'primary' if n==page }}" href="?{% if q %}q={{ q|urlencode }}&{% endif %}sort={{ f.sort }}&brand={{ f.brand|urlencode }}&page={{ n }}">{{ n }}</a>{% endfor %}</div>{% endif %}
+{% else %}<div class="card"><h3>No products found</h3><p class="mute">Try the brand and model (e.g. “Samsung A55”), fewer words, or clear the filters.</p></div>{% endif %}
+</section>
+</div>
+{% endblock %}

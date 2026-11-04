@@ -1,0 +1,19 @@
+{% extends "admin/_layout.html" %}{% block admin %}
+<h1>{{ 'Edit offer' if o.id else 'New offer' }}</h1>
+{% if v %}<p>For <a href="/admin/products/{{ v.product_id }}">{{ v.product.title }}</a> · {{ v.label }}</p>{% endif %}
+<form class="card form" method="post" action="/admin/offers/save" style="max-width:none">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ o.id or '' }}">
+<div class="two"><label>Retailer<select name="retailer_id" required>{% for r in retailers %}<option value="{{ r.id }}" {{ 'selected' if o.retailer_id==r.id }}>{{ r.name }} ({{ r.domain }})</option>{% endfor %}</select></label>
+<label>Variant ID<input name="variant_id" value="{{ o.variant_id or '' }}" placeholder="from the product page"></label></div>
+<label>Product URL on the retailer site<input name="product_url" value="{{ o.product_url or '' }}" required></label>
+<div class="two"><label>Retailer SKU<input name="retailer_sku" value="{{ o.retailer_sku or '' }}"></label><label>Retailer's product title<input name="retailer_title" value="{{ o.retailer_title or '' }}"></label></div>
+<div class="two"><label>Price<input name="price" value="{{ o.price if o.price is not none else '' }}" required inputmode="decimal"></label><label>Shipping (blank = unknown, 0 = free)<input name="shipping_cost" value="{{ o.shipping_cost if o.shipping_cost is not none else '' }}" inputmode="decimal"></label></div>
+<div class="two"><label>Currency<input name="currency" value="{{ o.currency or 'PKR' }}"></label>
+<label>Stock<select name="stock_status">{% for s in ['in_stock','limited','preorder','out_of_stock'] %}<option {{ 'selected' if o.stock_status==s }}>{{ s }}</option>{% endfor %}</select></label></div>
+<div class="two"><label>Condition<select name="condition">{% for s in ['new','used','refurbished','open_box'] %}<option {{ 'selected' if o.condition==s }}>{{ s }}</option>{% endfor %}</select></label><label>Warranty<input name="warranty_type" value="{{ o.warranty_type or '' }}" placeholder="1 Year Official Warranty"></label></div>
+<label>Permission reference<input name="permission_reference" value="{{ o.permission_reference or '' }}"></label>
+<label style="font-weight:400"><input type="checkbox" name="active" {{ 'checked' if o.active is none or o.active }}> Active</label>
+<button class="primary">Save (sets “last checked” to now)</button></form>
+{% if o.id %}<p class="small mute">Source: {{ o.source }} · import #{{ o.import_run_id or '—' }} · match: {{ o.match_method }} ({{ o.match_confidence }}). {{ o.match_evidence or '' }}</p>
+<h2>Price history</h2><div class="tablewrap"><table><tr><th>When</th><th>Price</th><th>Shipping</th><th>Stock</th></tr>{% for h in history %}<tr><td class="small">{{ h.captured_at.strftime('%Y-%m-%d %H:%M') }}</td><td>{{ h.price|pkr }}</td><td>{{ h.shipping_cost|pkr if h.shipping_cost is not none else '—' }}</td><td>{{ h.stock_status }}</td></tr>{% endfor %}</table></div>{% endif %}
+{% endblock %}

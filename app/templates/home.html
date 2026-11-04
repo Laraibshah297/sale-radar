@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <h1>{{ _("Compare real prices from verified Pakistani stores") }}</h1>
+  <p>Phones, laptops and accessories. Delivered price, warranty, stock and the time each price was last checked, side by side.</p>
+  <form action="/search"><input name="q" placeholder="{{ _('Search phones, laptops, earbuds…') }}" aria-label="Search" autofocus><button>{{ _("Search") }}</button></form>
+</section>
+{% if categories %}<h2>{{ _("Categories") }}</h2>
+<div class="chips">{% for c in categories %}<a class="chip" href="/c/{{ c.slug }}">{{ c.name }}</a>{% endfor %}</div>{% endif %}
+{% if popular %}<h2>{{ _("Popular comparisons") }}</h2>
+<div class="grid">{% for c in popular %}{% include "_card.html" %}{% endfor %}</div>{% endif %}
+<div class="cols" style="margin-top:28px">
+  <div class="card"><h3>{{ _("Verified stores") }}</h3>
+    {% if retailers %}<div class="chips">{% for r in retailers %}<a class="chip" href="/store/{{ r.slug }}">✔ {{ r.name }}</a>{% endfor %}</div>
+    {% else %}<p class="mute">Stores are being verified.</p>{% endif %}
+    <p class="small"><a href="/stores">All stores →</a></p></div>
+  <div class="card"><h3>{{ _("How prices are checked") }}</h3>
+    <p class="small">Prices come from the stores themselves (feeds and sheets they share with us) or are checked by our team. Every price shows when it was last checked. Old prices are marked or hidden. Offers are ranked by lowest price, never by who pays us.</p>
+    <a class="small" href="/page/how-prices-are-checked">Read more →</a></div>
+  <div class="card"><h3>Own a store?</h3>
+    <p class="small">List your products for free, get traffic reports and see how your prices compare.</p>
+    <a class="btn primary small" href="/merchants">{{ _("List your store") }}</a></div>
+</div>
+{% endblock %}

@@ -1,0 +1,4 @@
+<div class="tablewrap"><table><tr><th>#</th><th>When</th><th>Source</th><th>Status</th><th>OK</th><th>Review</th><th>Rejected</th></tr>
+{% for r in runs %}<tr><td><a href="{{ '/merchant' if user.role == 'merchant' else '/admin' }}/imports/{{ r.id }}">{{ r.id }}</a></td><td class="small">{{ r.started_at|ago }}</td><td class="small">{{ r.source }}{% if names is defined and r.retailer_id %} · {{ names.get(r.retailer_id) }}{% endif %}<div class="mute">{{ r.filename or '' }}</div></td>
+<td><span class="badge {{ 'good' if r.status=='done' else ('bad' if r.status=='failed' else 'warn') }}">{{ r.status }}</span></td><td>{{ r.rows_ok }}</td><td>{{ r.rows_review }}</td><td>{{ r.rows_rejected }}</td></tr>
+{% else %}<tr><td colspan=7 class="mute">No imports yet</td></tr>{% endfor %}</table></div>

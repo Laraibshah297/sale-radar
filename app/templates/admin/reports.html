@@ -1,0 +1,13 @@
+{% extends "admin/_layout.html" %}{% block admin %}
+<h1>Price reports</h1>
+<div class="tablewrap"><table><tr><th>When</th><th>Offer</th><th>Reason</th><th>Note</th><th>Status</th><th></th></tr>
+{% for r in reports %}<tr><td class="small">{{ r.created_at|ago }}</td><td><a href="/admin/offers/{{ r.offer_id }}">{{ r.offer.retailer.name }}: {{ r.offer.retailer_title }}</a><div class="small">{{ r.offer.price|pkr }} · <a href="{{ r.offer.product_url }}" target="_blank" rel="noopener">check ↗</a></div></td>
+<td>{{ r.reason }}</td><td class="small">{{ r.note or '' }}<div class="mute">{{ r.email or '' }}</div></td><td>{{ r.status }}</td>
+<td>{% if r.status=='open' %}<form method="post" action="/admin/reports/{{ r.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><label class="small"><input type="checkbox" name="hide_offer" value="1"> hide offer</label> <button class="small">Resolve</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan=6 class="mute">No reports</td></tr>{% endfor %}</table></div>
+<h2>Messages, corrections and store applications</h2>
+<div class="tablewrap"><table><tr><th>When</th><th>Type</th><th>From</th><th>Message</th><th></th></tr>
+{% for m in messages %}<tr><td class="small">{{ m.created_at|ago }}</td><td><span class="badge">{{ m.kind }}</span></td><td class="small">{{ m.name or '' }}<div>{{ m.email }}</div></td><td class="small" style="white-space:pre-wrap">{{ m.message }}</td>
+<td>{% if m.status=='open' %}<form method="post" action="/admin/messages/{{ m.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="small">Close</button></form>{% else %}<span class="mute small">closed</span>{% endif %}</td></tr>
+{% else %}<tr><td colspan=5 class="mute">No messages</td></tr>{% endfor %}</table></div>
+{% endblock %}

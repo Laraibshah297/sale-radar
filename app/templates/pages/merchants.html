@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}List your store | {{ settings.SITE_NAME }}{% endblock %}
+{% block content %}
+<section class="hero"><h1>Reach shoppers who are ready to buy</h1><p>People come here to compare prices for a specific phone or laptop and then buy. List your products for free, and see how many shoppers we send you.</p></section>
+<div class="cols">
+  <div class="card"><h3>Free listing</h3><p class="price">PKR 0</p><ul class="small"><li>Up to 500 offers</li><li>Upload a CSV or Google Sheet</li><li>Feed health and error reports</li><li>30-day click totals</li></ul></div>
+  <div class="card"><h3>Merchant Pro</h3><p class="price">PKR 5,000–15,000<span class="small mute"> /month, pilot pricing</span></p><ul class="small"><li>Unlimited offers</li><li>Automatic feed imports every few hours</li><li>Daily click analytics by product</li><li>Competitor price monitoring</li><li>Priority support</li></ul></div>
+  <div class="card"><h3>Sponsored campaigns</h3><p class="price">From PKR 10,000<span class="small mute"> /campaign</span></p><ul class="small"><li>Featured placement on product and category pages</li><li>Always labelled “Sponsored”</li><li>Never changes the price ranking</li></ul></div>
+</div>
+<h2 id="apply">Apply to list your store</h2>
+<form class="card form" method="post" action="/merchants/apply">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="two"><label>Store name<input name="store_name" required></label><label>Website domain<input name="domain" placeholder="mystore.pk" required></label></div>
+  <div class="two"><label>City<input name="city"></label><label>Phone / WhatsApp<input name="phone"></label></div>
+  <div class="two"><label>Your name<input name="contact_name"></label><label>Business email<input type="email" name="email" required></label></div>
+  <label>Password (at least 10 characters)<input type="password" name="password" minlength="10" required></label>
+  <label style="font-weight:400"><input type="checkbox" name="agree" value="1" required> I agree to the <a href="/page/merchant-agreement" target="_blank">merchant data agreement</a> and confirm I am authorised to share this store's product data.</label>
+  <button class="primary">Apply</button>
+  <p class="small mute">Your offers go live once we verify your store, usually within 2 working days.</p>
+</form>
+{% endblock %}

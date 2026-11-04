@@ -1,0 +1,24 @@
+{% extends "admin/_layout.html" %}{% block admin %}
+<h1>{{ p.title or 'New product' }} {% if p.id %}<a class="btn small" href="/p/{{ p.slug }}">View page</a>{% endif %}</h1>
+<form class="card form" method="post" action="/admin/products/save" style="max-width:none">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ p.id or '' }}">
+<label>Title (canonical name, without variant details)<input name="title" value="{{ p.title or '' }}" required placeholder="Samsung Galaxy A55 5G"></label>
+<div class="two"><label>Brand<input name="brand" value="{{ p.brand or '' }}" required></label><label>Model number / MPN<input name="model_number" value="{{ p.model_number or '' }}" placeholder="SM-A556E"></label></div>
+<div class="two"><label>Category<select name="category_id"><option value="">—</option>{% for c in cats %}<option value="{{ c.id }}" {{ 'selected' if p.category_id==c.id }}>{{ c.name }}</option>{% endfor %}</select></label><label>…or new category<input name="category_new"></label></div>
+<label>Image URL (only images you are allowed to show)<input name="image_url" value="{{ p.image_url or '' }}"></label>
+<label>Key specs (one per line, “Name: value”)<textarea name="specs" placeholder="Display: 6.6 inch AMOLED&#10;Battery: 5000 mAh">{% for k,v in (p.specs or {}).items() %}{{ k }}: {{ v }}
+{% endfor %}</textarea></label>
+<label>Description<textarea name="description">{{ p.description or '' }}</textarea></label>
+<button class="primary">Save product</button></form>
+{% if p.id %}
+<h2>Variants</h2><p class="small mute">Different storage, RAM, colour, region (e.g. PTA approved / non-PTA) or size must be separate variants. Offers are only compared within a variant.</p>
+<div class="tablewrap"><table><tr><th>ID</th><th>Storage</th><th>RAM</th><th>Colour</th><th>Size</th><th>Region</th><th>GTIN</th><th></th></tr>
+{% for v in p.variants %}<tr><td>{{ v.id }}<form id="vf{{ v.id }}" method="post" action="/admin/products/{{ p.id }}/variants"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="variant_id" value="{{ v.id }}"></form></td>
+{% for k in ['storage','ram','colour','size','region','gtin'] %}<td><input form="vf{{ v.id }}" name="{{k}}" value="{{ v[k] or '' }}"></td>{% endfor %}
+<td><button form="vf{{ v.id }}" class="small">Save</button> <a class="btn small" href="/admin/offers/new?variant={{ v.id }}">+ Offer</a></td></tr>{% endfor %}
+<tr><td>new<form id="vfnew" method="post" action="/admin/products/{{ p.id }}/variants"><input type="hidden" name="csrf" value="{{ csrf }}"></form></td>{% for k in ['storage','ram','colour','size','region','gtin'] %}<td><input form="vfnew" name="{{k}}"></td>{% endfor %}<td><button form="vfnew" class="small primary">Add</button></td></tr></table></div>
+<h2>Offers</h2><div class="tablewrap"><table><tr><th>Store</th><th>Variant</th><th>Price</th><th>Checked</th><th>Match</th></tr>
+{% for o in offers %}<tr><td><a href="/admin/offers/{{ o.id }}">{{ o.retailer.name }}</a><div class="small mute">{{ o.retailer_title }}</div></td><td class="small">#{{ o.variant_id }}</td><td>{{ o.price|pkr }}</td><td class="small">{{ o.checked_at|ago }}</td><td class="small">{{ o.match_method }}</td></tr>{% endfor %}</table></div>
+<form method="post" action="/admin/products/{{ p.id }}/delete" onsubmit="return confirm('Delete this product? Its offers go back to the review queue.')" style="margin-top:16px"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">Delete product</button></form>
+{% endif %}
+{% endblock %}

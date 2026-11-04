@@ -1,0 +1,19 @@
+{% extends "admin/_layout.html" %}{% block admin %}
+<h1>Sponsored campaigns</h1>
+<p class="small mute">Sponsored offers appear in a separate box labelled “Sponsored”. They never change the organic price ranking.</p>
+<form class="card form" method="post" action="/admin/campaigns" style="max-width:none"><input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="two"><label>Retailer<select name="retailer_id">{% for r in retailers %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label><label>Name<input name="name" required></label></div>
+<div class="two"><label>Offer ID (product page placement)<input name="offer_id"></label><label>…or category<select name="category_id"><option value="">—</option>{% for c in cats %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label></div>
+<div class="two"><label>Days<input name="days" value="14"></label><label>Budget / invoice note<input name="budget_note" placeholder="PKR 20,000, invoice #12"></label></div>
+<button class="primary">Create campaign</button></form>
+<div class="tablewrap" style="margin-top:12px"><table><tr><th>Campaign</th><th>Store</th><th>Placement</th><th>Ends</th><th>Status</th><th></th></tr>
+{% for c in campaigns %}<tr><td>{{ c.name }}<div class="small mute">{{ c.budget_note or '' }}</div></td><td>{{ c.retailer.name }}</td><td class="small">{{ 'offer #' ~ c.offer_id if c.offer_id else 'category #' ~ c.category_id }}</td><td class="small">{{ c.ends_at.strftime('%Y-%m-%d') }}</td><td>{{ 'active' if c.active else 'paused' }}</td>
+<td><form method="post" action="/admin/campaigns/{{ c.id }}/toggle"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="small">{{ 'Pause' if c.active else 'Resume' }}</button></form></td></tr>{% endfor %}</table></div>
+<h2>Affiliate conversions</h2>
+<p class="small mute">Record conversions reported by affiliate networks or retailers (or import them later from network reports).</p>
+<form class="card form" method="post" action="/admin/conversions" style="max-width:none"><input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="two"><label>Network / retailer<input name="network" required></label><label>Reference / order ID<input name="reference"></label></div>
+<div class="two"><label>Click ID (optional)<input name="click_id"></label><label>Commission (PKR)<input name="commission"></label></div>
+<label>Status<select name="order_status"><option>pending</option><option>approved</option><option>reversed</option></select></label><button>Add conversion</button></form>
+<div class="tablewrap" style="margin-top:12px"><table><tr><th>When</th><th>Network</th><th>Reference</th><th>Status</th><th>Commission</th></tr>{% for c in convs %}<tr><td class="small">{{ c.created_at|ago }}</td><td>{{ c.network }}</td><td>{{ c.reference or '' }}</td><td>{{ c.order_status }}</td><td>{{ c.commission|pkr }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

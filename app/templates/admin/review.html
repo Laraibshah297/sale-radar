@@ -1,0 +1,16 @@
+{% extends "admin/_layout.html" %}{% block admin %}
+<h1>Match review</h1>
+<p class="mute small">These offers could not be matched to a product with certainty. Link each to the exact variant (same model, storage, colour, region and condition), create a new product, or ignore it. Different variants must never be merged.</p>
+{% for o in offers %}<div class="card" style="margin-bottom:12px">
+<b>{{ o.retailer_title }}</b> <span class="badge warn">{{ o.match_status }}</span>
+<div class="small mute">{{ o.retailer.name }} · {{ o.price|pkr }} · SKU {{ o.retailer_sku }} · brand “{{ o.raw.get('brand','') }}” · model “{{ o.raw.get('model_number','') }}” · storage “{{ o.raw.get('storage_capacity','') }}” · <a href="{{ o.product_url }}" target="_blank" rel="noopener">open ↗</a></div>
+<div class="small">{{ o.match_evidence }}</div>
+{% for c in cands[o.id] %}<form class="inline" method="post" action="/admin/review/{{ o.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="link"><input type="hidden" name="variant_id" value="{{ c.variant_id }}">
+<button class="small" style="margin:6px 6px 0 0">✓ {{ c.variant.product.title }} · {{ c.variant.label }} <span class="mute">({{ c.score|round|int }}%: {{ c.evidence }})</span></button></form>{% endfor %}
+<div class="chips" style="margin-top:8px">
+<form class="inline" method="post" action="/admin/review/{{ o.id }}" style="display:flex;gap:6px"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="link"><input name="variant_id" placeholder="Variant ID" style="width:120px"><button class="small">Link</button></form>
+<form class="inline" method="post" action="/admin/review/{{ o.id }}" style="display:flex;gap:6px;flex-wrap:wrap"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="create">
+<input name="title" value="{{ o.retailer_title }}" style="width:260px"><input name="brand" value="{{ o.raw.get('brand','') }}" placeholder="Brand" style="width:120px"><input name="model_number" value="{{ o.raw.get('model_number','') }}" placeholder="Model no." style="width:120px"><button class="small">Create new product</button></form>
+<form class="inline" method="post" action="/admin/review/{{ o.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="ignore"><button class="small danger">Ignore</button></form>
+</div></div>{% else %}<div class="card">Nothing to review. 🎉</div>{% endfor %}
+{% endblock %}

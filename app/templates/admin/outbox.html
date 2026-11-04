@@ -1,0 +1,4 @@
+{% extends "admin/_layout.html" %}{% block admin %}
+<h1>Email outbox</h1>{% if not settings.SMTP_HOST %}<div class="notice">SMTP is not configured, so emails are stored here but not sent. Set SMTP_HOST in .env (a free Brevo or Zoho account works).</div>{% endif %}
+<div class="tablewrap"><table><tr><th>When</th><th>To</th><th>Subject</th><th>Status</th></tr>{% for e in emails %}<tr><td class="small">{{ e.created_at|ago }}</td><td>{{ e.to }}</td><td><details><summary>{{ e.subject }}</summary><pre class="small" style="white-space:pre-wrap">{{ e.body }}</pre></details></td><td>{{ 'sent' if e.sent else ('error: ' ~ e.error if e.error else 'not sent') }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

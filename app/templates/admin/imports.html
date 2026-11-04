@@ -1,0 +1,11 @@
+{% extends "admin/_layout.html" %}{% block admin %}
+<h1>Imports</h1>
+<form class="card form" method="post" action="/admin/imports" enctype="multipart/form-data" style="max-width:none">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<p class="small" style="margin:0">Upload a CSV (from Excel or Google Sheets: File → Download → CSV). <a href="/admin/imports/template.csv">Download the template</a> with all supported columns. Rows are validated; bad rows are rejected with reasons, and uncertain product matches go to <a href="/admin/review">Match review</a>.</p>
+<div class="two"><label>CSV file<input type="file" name="file" accept=".csv,text/csv" required></label>
+<label>Retailer<select name="retailer_id"><option value="">Detect from retailer_domain column</option>{% for r in retailers %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label></div>
+<label style="font-weight:400"><input type="checkbox" name="allow_create" value="1" checked> Create new catalogue products when brand + model number don't exist yet</label>
+<button class="primary">Import</button></form>
+<h2>History</h2>{% include "admin/_runs.html" %}
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "admin/_layout.html" if user.role != 'merchant' else "merchant/_layout.html" %}{% block admin %}
+<p><a href="{{ back }}">← Back</a></p>
+<h1>Import #{{ run.id }} <span class="badge {{ 'good' if run.status=='done' else ('bad' if run.status=='failed' else 'warn') }}">{{ run.status }}</span></h1>
+<p class="mute">{{ retailer.name if retailer else 'Multiple retailers' }} · {{ run.source }} · {{ run.filename or '' }} · {{ run.started_at|ago }}</p>
+<div class="kpis"><div class="kpi"><b>{{ run.rows_total }}</b><span>Rows</span></div><div class="kpi"><b>{{ run.rows_ok }}</b><span>Imported and matched</span></div>
+<div class="kpi"><b>{{ run.rows_review }}</b><span>Waiting for product match review</span></div><div class="kpi"><b>{{ run.rows_rejected }}</b><span>Rejected</span></div></div>
+{% if run.error %}<div class="flash err">{{ run.error }}</div>{% endif %}
+{% if run.rejects %}<h2>Rejected rows <a class="btn small" href="{{ back if back != '/admin/imports' else '/admin' }}/imports/{{ run.id }}/rejects.csv">Download as CSV</a></h2>
+<div class="tablewrap"><table><tr><th>Row</th><th>Reasons</th><th>Title</th><th>Price</th></tr>{% for r in run.rejects[:300] %}<tr><td>{{ r.row_number }}</td><td class="small" style="color:var(--bad)">{{ r.reasons }}</td><td class="small">{{ r.row.get('product_title','') }}</td><td class="small">{{ r.row.get('price','') }}</td></tr>{% endfor %}</table></div>{% endif %}
+{% endblock %}

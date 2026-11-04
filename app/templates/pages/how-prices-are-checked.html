@@ -1,0 +1,15 @@
+{% extends "pages/_page.html" %}{% block page %}
+<h3>Where prices come from</h3>
+<ul><li><b>Retailer feeds:</b> stores share a CSV file, Google Sheet or product feed with us, under a data agreement.</li>
+<li><b>Manual checks:</b> our team adds or rechecks offers on the retailer's website.</li>
+<li><b>Permitted automatic collection:</b> only where a retailer has given written permission, at a low frequency.</li></ul>
+<p>We do not bypass logins, CAPTCHAs, paywalls or technical blocks, and we stop collecting from a store if it asks us to.</p>
+<h3>Freshness</h3>
+<p>Every offer shows “last checked”. Prices older than {{ settings.STALE_HOURS }} hours are marked <span class="badge warn">Stale price</span>, and prices older than {{ (settings.HIDE_HOURS / 24)|int }} days are hidden.</p>
+<h3>How offers are ranked</h3>
+<p>By default: lowest known <b>delivered</b> price (item + shipping) first. Offers where shipping is unknown come after, sorted by item price, and are labelled “Unknown”. In-stock offers come before out-of-stock ones. Ranking is <b>never</b> changed by advertising or commission. Paid placements appear in a separate box labelled <span class="badge spon">Sponsored</span>.</p>
+<h3>Matching products</h3>
+<p>We only compare offers for exactly the same model and variant (storage, RAM, colour, region such as PTA-approved, and condition). We use barcodes (GTIN) and model numbers first. Uncertain matches are checked by a person before they are shown.</p>
+<h3>Deal labels</h3><p>“Lowest price in 30 days” and “Below the usual price” compare today's price with prices we actually observed, not with the store's crossed-out price.</p>
+<h3>See something wrong?</h3><p>Use “Report incorrect price” next to any offer. We review reports promptly.</p>
+{% endblock %}

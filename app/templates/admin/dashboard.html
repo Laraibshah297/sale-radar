@@ -1,0 +1,26 @@
+{% extends "admin/_layout.html" %}{% block admin %}
+<h1>Dashboard <span class="small mute">last {{ m.days }} days</span></h1>
+{% if m.review or m.reports or m.messages or m.pending_retailers or m.stale %}<div class="notice">To do:
+{% if m.review %}<a href="/admin/review">{{ m.review }} offers need matching</a> · {% endif %}
+{% if m.reports %}<a href="/admin/reports">{{ m.reports }} price reports</a> · {% endif %}
+{% if m.messages %}<a href="/admin/reports">{{ m.messages }} messages</a> · {% endif %}
+{% if m.pending_retailers %}<a href="/admin/retailers">{{ m.pending_retailers }} store applications</a> · {% endif %}
+{% if m.stale %}<a href="/admin/offers?status=stale">{{ m.stale }} stale offers</a>{% endif %}</div>{% endif %}
+<h2>Pilot metrics</h2>
+<div class="kpis">
+ <div class="kpi"><b>{{ m.searches }}</b><span>Searches ({{ m.searches_per_visitor }} per visitor)</span></div>
+ <div class="kpi"><b>{{ m.search_to_product }}%</b><span>Search → product click rate</span></div>
+ <div class="kpi"><b>{{ m.outbound_ctr }}%</b><span>Outbound click-through ({{ m.clicks }} clicks; {{ m.bot_clicks }} bot clicks excluded)</span></div>
+ <div class="kpi"><b>{{ m.coverage }}%</b><span>Offer coverage ({{ m.covered }} of {{ m.products }} products have 2+ stores)</span></div>
+ <div class="kpi"><b>{{ m.median_age_h if m.median_age_h is not none else '—' }} h</b><span>Freshness (median offer age, {{ m.offers_live }} live offers)</span></div>
+ <div class="kpi"><b>{{ m.stale }} / {{ m.hidden }}</b><span>Stale / hidden offers</span></div>
+ <div class="kpi"><b>{{ m.alerts }}</b><span>Active price alerts</span></div>
+ <div class="kpi"><b>{{ m.commission|pkr }}</b><span>Approved commission (EPC {{ m.epc|pkr }})</span></div>
+</div>
+<p class="small mute">Price accuracy: check a weekly sample of offers against the retailer's page and use “Mark checked” or edit the price. Goal: 90%+ accurate.</p>
+<div class="cols">
+ <div><h2>Top searches</h2><div class="tablewrap"><table><tr><th>Query</th><th>Times</th><th>Results</th></tr>{% for q,c,r in top_q %}<tr><td><a href="/search?q={{ q|urlencode }}">{{ q }}</a></td><td>{{ c }}</td><td>{{ r }}</td></tr>{% else %}<tr><td colspan=3 class="mute">No searches yet</td></tr>{% endfor %}</table></div></div>
+ <div><h2>Searches with no results</h2><div class="tablewrap"><table><tr><th>Query</th><th>Times</th></tr>{% for q,c in zero_q %}<tr><td>{{ q }}</td><td>{{ c }}</td></tr>{% else %}<tr><td colspan=2 class="mute">None. Good!</td></tr>{% endfor %}</table></div><p class="small mute">These show which products or stores to add next.</p></div>
+</div>
+<h2>Recent imports</h2>{% include "admin/_runs.html" %}
+{% endblock %}

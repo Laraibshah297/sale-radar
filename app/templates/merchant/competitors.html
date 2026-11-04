@@ -1,0 +1,9 @@
+{% extends "merchant/_layout.html" %}{% block admin %}
+<h1>Competitor prices</h1>
+{% if r.plan != 'pro' %}<div class="card"><p>See how your price compares to the lowest other store for exactly the same product and variant.</p><span class="badge spon">Merchant Pro feature</span> <a class="btn primary small" href="/contact">Upgrade: contact us</a></div>
+{% else %}<p class="small mute">Compared only with other stores' live, in-stock offers for the same variant.</p>
+<div class="tablewrap"><table><tr><th>Your product</th><th>Your price</th><th>Lowest other store</th><th>Difference</th></tr>
+{% for x in rows %}<tr><td>{{ x.o.variant.product.title }}<div class="small mute">{{ x.o.variant.label }}</div></td><td>{{ x.o.price|pkr }}</td>
+<td>{% if x.best %}{{ x.best.price|pkr }}<div class="small mute">{{ x.best.retailer.name }} · {{ x.n }} stores</div>{% else %}<span class="mute">No other store</span>{% endif %}</td>
+<td>{% if x.diff is not none %}<span class="badge {{ 'bad' if x.diff > 0 else 'good' }}">{{ '+' if x.diff > 0 }}{{ x.diff|pkr }}</span>{% endif %}</td></tr>{% else %}<tr><td colspan=4 class="mute">No matched offers yet</td></tr>{% endfor %}</table></div>{% endif %}
+{% endblock %}

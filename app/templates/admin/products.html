@@ -1,0 +1,7 @@
+{% extends "admin/_layout.html" %}{% block admin %}
+<h1>Products <a class="btn small primary" href="/admin/products/new">+ Add product</a> <a class="btn small" href="/admin/export.csv">Export all offers CSV</a></h1>
+<form><input name="q" value="{{ q }}" placeholder="Search title, brand or model"></form>
+<div class="tablewrap" style="margin-top:10px"><table><tr><th>ID</th><th>Product</th><th>Category</th><th>Variants</th><th>Live offers</th></tr>
+{% for p in products %}<tr><td>{{ p.id }}</td><td><a href="/admin/products/{{ p.id }}"><b>{{ p.title }}</b></a><div class="small mute">{{ p.brand }} · {{ p.model_number or 'no model number' }}</div></td><td>{{ p.category.name if p.category else '—' }}</td>
+<td class="small">{% for v in p.variants %}<div>#{{ v.id }} {{ v.label }}</div>{% endfor %}</td><td>{{ counts.get(p.id,0) }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

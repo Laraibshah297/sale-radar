@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}Log in | {{ settings.SITE_NAME }}{% endblock %}
+{% block content %}<form class="card form" method="post" action="/login" style="max-width:420px;margin:30px auto">
+<h1>Log in</h1><p class="small mute">For store owners and the {{ settings.SITE_NAME }} team.</p>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="{{ next }}">
+<label>Email<input type="email" name="email" required autocomplete="username"></label>
+<label>Password<input type="password" name="password" required autocomplete="current-password"></label>
+<button class="primary">Log in</button><p class="small">New store? <a href="/merchants#apply">Apply here</a></p></form>{% endblock %}

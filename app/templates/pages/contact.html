@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Contact | {{ settings.SITE_NAME }}{% endblock %}
+{% block content %}
+<h1>{{ {'correction':'Report a correction','takedown':'Correction or takedown request'}.get(kind,'Contact us') }}</h1>
+<form class="card form" method="post" action="/contact">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>Type<select name="kind">{% for k,l in [('contact','General question'),('correction','Wrong price / product information'),('takedown','Retailer or brand takedown request')] %}<option value="{{k}}" {{ 'selected' if kind==k }}>{{l}}</option>{% endfor %}</select></label>
+  <div class="two"><label>Name<input name="name"></label><label>Email<input type="email" name="email" required></label></div>
+  <label>Message<textarea name="message" required placeholder="Include the product link if this is about an offer."></textarea></label>
+  <button class="primary">Send</button>
+</form>
+{% endblock %}

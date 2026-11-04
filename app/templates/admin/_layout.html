@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ title or 'Admin' }} | {{ settings.SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="admin">
+<nav class="side card" style="padding:8px;align-self:start">
+  {% set here = request.url.path %}
+  {% for href,label in [('/admin','Dashboard'),('/admin/review','Match review'),('/admin/offers','Offers'),('/admin/products','Products'),('/admin/retailers','Retailers'),('/admin/imports','Imports'),('/admin/reports','Reports & messages'),('/admin/campaigns','Sponsored & revenue'),('/admin/outbox','Email outbox'),('/admin/users','Users'),('/admin/audit','Audit log')] %}
+  <a href="{{ href }}" class="{{ 'on' if here == href or (href != '/admin' and here.startswith(href)) }}">{{ label }}</a>{% endfor %}
+  <form method="post" action="/logout" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="small" style="width:100%">Log out ({{ user.email }})</button></form>
+</nav>
+<section style="min-width:0">{% block admin %}{% endblock %}</section>
+</div>
+{% endblock %}

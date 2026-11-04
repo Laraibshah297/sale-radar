@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ur' else 'ltr' }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ settings.SITE_NAME }}: {{ _("Compare real prices from verified Pakistani stores") }}{% endblock %}</title>
+<meta name="description" content="{% block description %}Compare phone, laptop and electronics prices across verified Pakistani online stores. See delivered price, warranty, stock and when each price was last checked.{% endblock %}">
+{% block head %}{% endblock %}
+<link rel="stylesheet" href="/static/app.css?v=1">
+<link rel="manifest" href="/static/manifest.json">
+<meta name="theme-color" content="#17365d">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="logo" href="/">Sale<span>Radar</span></a>
+  <form class="topsearch" action="/search" role="search">
+    <input name="q" value="{{ q or '' }}" placeholder="{{ _('Search phones, laptops, earbuds…') }}" aria-label="{{ _('Search') }}">
+    <button class="primary" type="submit">{{ _("Search") }}</button>
+  </form>
+  <nav class="links">
+    <a class="hide-sm" href="/stores">{{ _("Verified stores") }}</a>
+    <a class="hide-sm" href="/merchants">{{ _("List your store") }}</a>
+    {% if lang == 'ur' %}<a href="/lang/en">English</a>{% else %}<a href="/lang/ur">اردو</a>{% endif %}
+    {% if user %}<a href="{{ '/merchant' if user.role == 'merchant' else '/admin' }}">Dashboard</a>{% endif %}
+  </nav>
+</div></header>
+<main><div class="wrap">
+{% if flash %}<div class="flash {{ 'err' if flash.kind == 'err' else '' }}" role="status">{{ flash.msg }}</div>{% endif %}
+{% block content %}{% endblock %}
+</div></main>
+<footer><div class="wrap">
+  <div><b>{{ settings.SITE_NAME }}</b><br>{{ _("We are not the seller. Prices and stock can change; always verify at the retailer's checkout.") }}</div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap">
+    <a href="/page/about">{{ _("About") }}</a><a href="/page/how-prices-are-checked">{{ _("How prices are checked") }}</a>
+    <a href="/page/affiliate-disclosure">{{ _("Affiliate disclosure") }}</a><a href="/page/privacy">{{ _("Privacy") }}</a>
+    <a href="/page/terms">{{ _("Terms") }}</a><a href="/contact">{{ _("Contact") }}</a><a href="/contact?kind=correction">Corrections</a>
+    {% if not user %}<a href="/login">Log in</a>{% endif %}
+  </div>
+</div></footer>
+</body>
+</html>

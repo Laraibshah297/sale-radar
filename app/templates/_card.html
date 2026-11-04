@@ -1,0 +1,11 @@
+<a class="pcard" href="/p/{{ c.product.slug }}{{ '?ref=search' if from_search else '' }}">
+  <div class="img">{% if c.product.image_url %}<img loading="lazy" src="{{ c.product.image_url }}" alt="{{ c.product.title }}">{% else %}<img loading="lazy" src="/static/placeholder.svg" alt="">{% endif %}</div>
+  <div class="body">
+    <span class="small mute">{{ c.product.brand }}{% if c.key_spec %} · {{ c.key_spec }}{% endif %}</span>
+    <span class="title">{{ c.product.title }}</span>
+    <span class="small mute">{{ _("Lowest price") }}</span>
+    <span class="price">{{ c.lowest|pkr }}</span>
+    <span class="small">{{ c.stores }} {{ _("stores") }}{% if not c.in_stock %} · <span class="badge bad">{{ _("Out of stock") }}</span>{% endif %}</span>
+    {% if c.updated %}<span class="small mute">{{ _("Last checked") }} {{ c.updated|ago }}</span>{% endif %}
+  </div>
+</a>

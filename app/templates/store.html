@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ r.name }}: store profile | {{ settings.SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="cols">
+<div class="card">
+  <h1>{{ r.name }} {% if r.verified %}<span class="badge blue">✔ Verified store</span>{% else %}<span class="badge">Not yet verified</span>{% endif %}</h1>
+  {% if r.description %}<p>{{ r.description }}</p>{% endif %}
+  <ul class="trust">
+    <li>Website: <a href="https://{{ r.domain }}" rel="nofollow noopener" target="_blank">{{ r.domain }}</a></li>
+    {% if r.city %}<li>City: {{ r.city }}</li>{% endif %}
+    {% if r.delivery_regions %}<li>Delivers to: {{ r.delivery_regions }}</li>{% endif %}
+    {% if r.phone %}<li>Phone: {{ r.phone }}</li>{% endif %}
+    {% if r.email %}<li>Email: {{ r.email }}</li>{% endif %}
+    {% if r.address %}<li>Address: {{ r.address }}</li>{% endif %}
+    {% if r.return_policy_url %}<li><a href="{{ r.return_policy_url }}" rel="nofollow noopener" target="_blank">Return policy ↗</a></li>{% endif %}
+    {% if r.warranty_policy_url %}<li><a href="{{ r.warranty_policy_url }}" rel="nofollow noopener" target="_blank">Warranty policy ↗</a></li>{% endif %}
+    {% if r.last_import_at %}<li>Prices last updated {{ r.last_import_at|ago }}</li>{% endif %}
+  </ul>
+  <p class="small mute">“Verified” means we checked this store's business identity and contact details. It is not a guarantee of products, stock or delivery. <a href="/contact?kind=correction">Report a problem with this store</a>.</p>
+</div>
+</div>
+<h2>Products at {{ r.name }} ({{ total }})</h2>
+<div class="grid">{% for c in cards %}{% include "_card.html" %}{% endfor %}</div>
+{% endblock %}

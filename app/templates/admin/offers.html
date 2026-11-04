@@ -1,0 +1,15 @@
+{% extends "admin/_layout.html" %}{% block admin %}
+<h1>Offers</h1>
+<form class="chips" style="margin-bottom:12px">
+  <select name="status" style="width:auto">{% for s,l in [('','All'),('matched','Matched'),('review','Needs review'),('unmatched','Unmatched'),('stale','Stale'),('inactive','Inactive')] %}<option value="{{s}}" {{ 'selected' if status==s }}>{{l}}</option>{% endfor %}</select>
+  <select name="retailer" style="width:auto"><option value="">All stores</option>{% for r in retailers %}<option value="{{ r.id }}" {{ 'selected' if retailer==r.id }}>{{ r.name }}</option>{% endfor %}</select>
+  <button>Filter</button></form>
+<div class="tablewrap"><table><tr><th>Store</th><th>Retailer title → product</th><th>Price</th><th>Stock</th><th>Checked</th><th>Match</th><th></th></tr>
+{% for o in offers %}<tr><td class="small">{{ o.retailer.name }}</td>
+<td><a href="/admin/offers/{{ o.id }}">{{ o.retailer_title }}</a>{% if o.variant %}<div class="small mute">→ {{ o.variant.product.title }} · {{ o.variant.label }}</div>{% endif %}</td>
+<td>{{ o.price|pkr }}</td><td class="small">{{ o.stock_status }}</td>
+<td class="small">{{ o.checked_at|ago }}{% set fr = freshness(o) %}{% if fr != 'fresh' %} <span class="badge {{ 'warn' if fr=='stale' else 'bad' }}">{{ fr }}</span>{% endif %}</td>
+<td class="small"><span class="badge {{ 'good' if o.match_status=='matched' else 'warn' }}">{{ o.match_status }}</span><div class="mute">{{ o.match_method }}</div></td>
+<td><form method="post" action="/admin/offers/{{ o.id }}/recheck"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="small" title="I checked this price on the retailer site and it's still correct">Mark checked</button></form></td></tr>
+{% else %}<tr><td colspan=7 class="mute">No offers</td></tr>{% endfor %}</table></div>
+{% endblock %}

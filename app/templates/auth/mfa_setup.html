@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block content %}<form class="card form" method="post" action="/login/mfa-setup" style="max-width:480px;margin:30px auto">
+<h1>Set up two-step verification</h1>
+<p class="small">Team accounts need a second step to protect the admin panel. Install Google Authenticator, Microsoft Authenticator or Authy, then scan the QR code or type the key.</p>
+{% if qr %}<img src="{{ qr }}" alt="QR code" width="200" height="200">{% endif %}
+<p>Key: <code style="font-size:16px">{{ secret }}</code></p>
+<input type="hidden" name="csrf" value="{{ csrf }}"><label>6-digit code from the app<input name="code" inputmode="numeric" required autofocus></label>
+<button class="primary">Turn on and continue</button></form>{% endblock %}

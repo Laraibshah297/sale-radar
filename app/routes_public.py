@@ -1,0 +1,305 @@
+import secrets
+from decimal import Decimal, InvalidOperation
+from xml.sax.saxutils import escape
+
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import PlainTextResponse, RedirectResponse, Response
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, selectinload
+
+from .config import settings
+from .db import get_db
+from .importer import host_allowed
+from .mailer import send_email
+from .models import (Category, ClickEvent, ContactMessage, Offer, PriceAlert, PriceReport, Product,
+                     ProductView, Retailer, SearchLog, User, Variant)
+from .security import hash_password, looks_like_bot, require_csrf, session_id
+from .services import (card_for, deal_quality, facets, offers_for_variant, price_history,
+                       search_products, sponsored_for)
+from .web import current_user, flash, redirect, render
+
+router = APIRouter()
+
+
+def _dec(v):
+    try:
+        return Decimal(str(v).replace(",", "")) if v not in (None, "") else None
+    except InvalidOperation:
+        return None
+
+
+@router.get("/")
+def home(request: Request, db: Session = Depends(get_db), _u=Depends(current_user)):
+    cats = db.scalars(select(Category).order_by(Category.name)).all()
+    retailers = db.scalars(select(Retailer).where(Retailer.status == "active", Retailer.verified)
+                           .order_by(Retailer.name)).all()
+    popular, _, _ = search_products(db, "", limit=8)
+    return render(request, "home.html", {"categories": cats, "retailers": retailers, "popular": popular})
+
+
+@router.get("/search")
+def search(request: Request, q: str = "", brand: str = "", store: int | None = None, min: str = "",
+           max: str = "", stock: int = 0, storage: str = "", ram: str = "", sort: str = "relevance",
+           page: int = 1, db: Session = Depends(get_db), _u=Depends(current_user)):
+    return _listing(request, db, q=q, category=None, brand=brand, store=store, min_=min, max_=max,
+                    stock=stock, storage=storage, ram=ram, sort=sort, page=page)
+
+
+@router.get("/c/{slug}")
+def category(slug: str, request: Request, brand: str = "", store: int | None = None, min: str = "",
+             max: str = "", stock: int = 0, storage: str = "", ram: str = "", sort: str = "relevance",
+             page: int = 1, db: Session = Depends(get_db), _u=Depends(current_user)):
+    cat = db.scalar(select(Category).where(Category.slug == slug))
+    if not cat:
+        raise HTTPException(404)
+    return _listing(request, db, q="", category=cat, brand=brand, store=store, min_=min, max_=max,
+                    stock=stock, storage=storage, ram=ram, sort=sort, page=page)
+
+
+def _listing(request, db, *, q, category, brand, store, min_, max_, stock, storage, ram, sort, page):
+    page = max(page, 1)
+    per = 24
+    kw = dict(category=category, brand=brand or None, retailer_id=store, min_price=_dec(min_),
+              max_price=_dec(max_), in_stock=bool(stock), spec_filters={"storage": storage, "ram": ram})
+    cards, total, fuzzy = search_products(db, q, sort=sort, limit=per, offset=(page - 1) * per, **kw)
+    all_cards, _, _ = search_products(db, q, category=category, limit=10000)
+    if q and page == 1:
+        db.add(SearchLog(query=q[:300], results=total, session_id=session_id(request)))
+        db.commit()
+    retailers = db.scalars(select(Retailer).where(Retailer.status == "active").order_by(Retailer.name)).all()
+    sponsored = sponsored_for(db, category_id=category.id) if category else []
+    return render(request, "listing.html", {
+        "q": q, "category": category, "cards": cards, "total": total, "fuzzy": fuzzy, "facets": facets(all_cards),
+        "retailers": retailers, "sponsored": sponsored, "page": page, "pages": (total + per - 1) // per,
+        "f": {"brand": brand, "store": store, "min": min_, "max": max_, "stock": stock, "storage": storage,
+              "ram": ram, "sort": sort}})
+
+
+@router.get("/p/{slug}")
+def product(slug: str, request: Request, v: int | None = None, sort: str = "delivered", ref: str = "",
+            db: Session = Depends(get_db), _u=Depends(current_user)):
+    p = db.scalar(select(Product).where(Product.slug == slug)
+                  .options(selectinload(Product.variants), selectinload(Product.category)))
+    if not p:
+        raise HTTPException(404)
+    variants = sorted(p.variants, key=lambda x: (len(x.storage or ""), x.storage or "", x.colour or ""))
+    # default to the variant with the most offers
+    counts = {x.id: len(offers_for_variant(db, x)) for x in variants}
+    variant = next((x for x in variants if x.id == v), None) or (
+        max(variants, key=lambda x: counts[x.id]) if variants else None)
+    offers = offers_for_variant(db, variant, sort=sort) if variant else []
+    hist = price_history(db, variant) if variant else []
+    in_stock = [o for o in offers if o.stock_status != "out_of_stock"]
+    current_low = min((o.price for o in in_stock), default=None)
+    db.add(ProductView(product_id=p.id, session_id=session_id(request), from_search=(ref == "search")))
+    db.commit()
+    return render(request, "product.html", {
+        "p": p, "variants": variants, "variant": variant, "counts": counts, "offers": offers, "sort": sort,
+        "history": hist, "deal": deal_quality(current_low, hist), "current_low": current_low,
+        "sponsored": sponsored_for(db, variant=variant) if variant else [],
+        "card": card_for(p, offers),
+        "suggest": int(current_low * Decimal("0.95") // 100 * 100) if current_low else None})
+
+
+@router.get("/go/{offer_id}")
+def go(offer_id: int, request: Request, src: str = "product", db: Session = Depends(get_db)):
+    """Outbound redirect. Counts the click and only redirects to the offer's
+    own URL when its host is the retailer's allow-listed domain."""
+    o = db.get(Offer, offer_id)
+    if not o or not o.active or o.retailer.status != "active":
+        raise HTTPException(404)
+    if not host_allowed(o.product_url, o.retailer.domain):
+        raise HTTPException(400, "This link is not allowed.")
+    db.add(ClickEvent(offer_id=o.id, retailer_id=o.retailer_id, session_id=session_id(request),
+                      source=src[:60], referrer=(request.headers.get("referer") or "")[:500],
+                      sponsored=(src == "sponsored"),
+                      is_bot=looks_like_bot(request.headers.get("user-agent"))))
+    db.commit()
+    url = o.product_url
+    if o.retailer.affiliate_status == "approved" and o.retailer.affiliate_param:
+        url += ("&" if "?" in url else "?") + o.retailer.affiliate_param
+    return RedirectResponse(url, status_code=302, headers={"X-Robots-Tag": "noindex"})
+
+
+@router.get("/store/{slug}")
+def store(slug: str, request: Request, db: Session = Depends(get_db), _u=Depends(current_user)):
+    r = db.scalar(select(Retailer).where(Retailer.slug == slug, Retailer.status == "active"))
+    if not r:
+        raise HTTPException(404)
+    cards, total, _ = search_products(db, "", retailer_id=r.id, limit=24)
+    return render(request, "store.html", {"r": r, "cards": cards, "total": total})
+
+
+@router.get("/stores")
+def stores(request: Request, db: Session = Depends(get_db), _u=Depends(current_user)):
+    rs = db.scalars(select(Retailer).where(Retailer.status == "active").order_by(Retailer.verified.desc(),
+                                                                                  Retailer.name)).all()
+    counts = dict(db.execute(select(Offer.retailer_id, func.count()).where(Offer.active)
+                             .group_by(Offer.retailer_id)).all())
+    return render(request, "stores.html", {"retailers": rs, "counts": counts})
+
+
+# ---------------------------------------------------------------- alerts
+
+@router.post("/alerts", dependencies=[Depends(require_csrf)])
+def create_alert(request: Request, variant_id: int = Form(...), email: str = Form(...),
+                 target_price: str = Form(...), consent: str = Form(""), db: Session = Depends(get_db)):
+    v = db.get(Variant, variant_id)
+    target = _dec(target_price)
+    email = email.strip().lower()
+    if not v or not target or "@" not in email or not consent:
+        flash(request, "Please enter a valid email, a target price and tick the consent box.", "err")
+        return redirect(f"/p/{v.product.slug}" if v else "/")
+    a = PriceAlert(email=email, variant_id=v.id, target_price=target, token=secrets.token_urlsafe(24))
+    db.add(a)
+    db.flush()
+    send_email(db, email, f"Confirm your price alert for {v.product.title}",
+               f"Please confirm you want an email when {v.product.title} ({v.label}) drops to "
+               f"Rs {target:,.0f} or less:\n{settings.BASE_URL}/alerts/confirm/{a.token}\n\n"
+               f"If you did not ask for this, ignore this email.")
+    db.commit()
+    flash(request, "Almost done: check your email and click the confirmation link.")
+    return redirect(f"/p/{v.product.slug}?v={v.id}")
+
+
+@router.get("/alerts/confirm/{token}")
+def confirm_alert(token: str, request: Request, db: Session = Depends(get_db)):
+    a = db.scalar(select(PriceAlert).where(PriceAlert.token == token))
+    if not a:
+        raise HTTPException(404)
+    a.confirmed = True
+    db.commit()
+    flash(request, "Price alert confirmed. We'll email you when the price drops.")
+    return redirect(f"/p/{a.variant.product.slug}?v={a.variant_id}")
+
+
+@router.get("/alerts/unsubscribe/{token}")
+def unsubscribe(token: str, request: Request, db: Session = Depends(get_db)):
+    a = db.scalar(select(PriceAlert).where(PriceAlert.token == token))
+    if a:
+        a.active = False
+        db.commit()
+    return render(request, "pages/message.html", {"title": "Unsubscribed",
+                                                   "body": "You will not get this price alert any more."})
+
+
+# ---------------------------------------------------------------- reports, contact, merchant signup
+
+@router.post("/report", dependencies=[Depends(require_csrf)])
+def report(request: Request, offer_id: int = Form(...), reason: str = Form(...), note: str = Form(""),
+           email: str = Form(""), db: Session = Depends(get_db)):
+    o = db.get(Offer, offer_id)
+    if not o:
+        raise HTTPException(404)
+    if reason not in {"wrong_price", "out_of_stock", "wrong_product", "other"}:
+        reason = "other"
+    db.add(PriceReport(offer_id=o.id, reason=reason, note=note[:2000], email=email[:200] or None))
+    db.commit()
+    flash(request, "Thank you. Our team will check this offer.")
+    slug = o.variant.product.slug if o.variant else ""
+    return redirect(f"/p/{slug}?v={o.variant_id}" if slug else "/")
+
+
+@router.get("/contact")
+def contact_page(request: Request, kind: str = "contact", _u=Depends(current_user)):
+    return render(request, "pages/contact.html", {"kind": kind})
+
+
+@router.post("/contact", dependencies=[Depends(require_csrf)])
+def contact(request: Request, kind: str = Form("contact"), name: str = Form(""), email: str = Form(...),
+            message: str = Form(...), db: Session = Depends(get_db)):
+    if kind not in {"contact", "correction", "takedown"}:
+        kind = "contact"
+    db.add(ContactMessage(kind=kind, name=name[:160], email=email[:200], message=message[:5000]))
+    db.commit()
+    flash(request, "Message received. We usually reply within 2 working days.")
+    return redirect("/contact")
+
+
+@router.get("/merchants")
+def merchants(request: Request, _u=Depends(current_user)):
+    return render(request, "pages/merchants.html")
+
+
+@router.post("/merchants/apply", dependencies=[Depends(require_csrf)])
+def merchant_apply(request: Request, store_name: str = Form(...), domain: str = Form(...),
+                   city: str = Form(""), contact_name: str = Form(""), email: str = Form(...),
+                   phone: str = Form(""), password: str = Form(...), agree: str = Form(""),
+                   db: Session = Depends(get_db)):
+    from .text import slugify
+    domain = domain.strip().lower().removeprefix("https://").removeprefix("http://").removeprefix("www.").split("/")[0]
+    email = email.strip().lower()
+    err = None
+    if not agree:
+        err = "Please accept the merchant data agreement."
+    elif len(password) < 10:
+        err = "Password must be at least 10 characters."
+    elif db.scalar(select(User).where(User.email == email)):
+        err = "An account with this email already exists. Please log in."
+    elif "." not in domain:
+        err = "Please enter your store's website domain, e.g. mystore.pk"
+    if err:
+        flash(request, err, "err")
+        return redirect("/merchants#apply")
+    slug, i = slugify(store_name), 2
+    while db.scalar(select(Retailer.id).where(Retailer.slug == slug)):
+        slug, i = f"{slugify(store_name)}-{i}", i + 1
+    r = Retailer(name=store_name.strip(), slug=slug, domain=domain, city=city or None, email=email,
+                 phone=phone or None, status="pending", feed_method="csv",
+                 permission_reference=f"Merchant self-signup, data agreement accepted by {email}")
+    db.add(r)
+    db.flush()
+    db.add(User(email=email, name=contact_name or None, password_hash=hash_password(password),
+                role="merchant", retailer_id=r.id))
+    db.add(ContactMessage(kind="merchant_application", name=contact_name, email=email,
+                          message=f"New store application: {store_name} ({domain}), {city}, {phone}"))
+    db.commit()
+    flash(request, "Application received! Log in to upload your products while we verify your store.")
+    return redirect("/login")
+
+
+# ---------------------------------------------------------------- static pages, language, SEO
+
+PAGES = {"about": "About", "how-prices-are-checked": "How prices are checked", "privacy": "Privacy policy",
+         "terms": "Terms of use", "affiliate-disclosure": "Affiliate disclosure",
+         "merchant-agreement": "Merchant data agreement"}
+
+
+@router.get("/page/{name}")
+def page(name: str, request: Request, _u=Depends(current_user)):
+    if name not in PAGES:
+        raise HTTPException(404)
+    return render(request, f"pages/{name}.html", {"title": PAGES[name]})
+
+
+@router.get("/lang/{code}")
+def lang(code: str, request: Request):
+    request.session["lang"] = "ur" if code == "ur" else "en"
+    back = request.headers.get("referer") or "/"
+    return redirect(back if back.startswith(settings.BASE_URL) or back.startswith("/") else "/")
+
+
+@router.get("/robots.txt", response_class=PlainTextResponse)
+def robots():
+    return (f"User-agent: *\nDisallow: /admin\nDisallow: /merchant\nDisallow: /go/\nDisallow: /alerts/\n"
+            f"Sitemap: {settings.BASE_URL}/sitemap.xml\n")
+
+
+@router.get("/sitemap.xml")
+def sitemap(db: Session = Depends(get_db)):
+    urls = [f"{settings.BASE_URL}/", f"{settings.BASE_URL}/stores"]
+    urls += [f"{settings.BASE_URL}/c/{s}" for s in db.scalars(select(Category.slug))]
+    urls += [f"{settings.BASE_URL}/p/{s}" for s in db.scalars(select(Product.slug))]
+    urls += [f"{settings.BASE_URL}/store/{s}" for s in
+             db.scalars(select(Retailer.slug).where(Retailer.status == "active"))]
+    urls += [f"{settings.BASE_URL}/page/{n}" for n in PAGES]
+    body = "".join(f"<url><loc>{escape(u)}</loc></url>" for u in urls)
+    return Response(f'<?xml version="1.0" encoding="UTF-8"?><urlset '
+                    f'xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>',
+                    media_type="application/xml")
+
+
+@router.get("/healthz", response_class=PlainTextResponse)
+def healthz(db: Session = Depends(get_db)):
+    db.execute(select(1))
+    return "ok"

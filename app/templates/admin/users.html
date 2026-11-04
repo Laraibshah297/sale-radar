@@ -1,0 +1,11 @@
+{% extends "admin/_layout.html" %}{% block admin %}
+<h1>Users</h1>
+<form class="card form" method="post" action="/admin/users" style="max-width:none"><input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="two"><label>Email<input type="email" name="email" required></label><label>Name<input name="name"></label></div>
+<div class="two"><label>Role<select name="role"><option value="editor">Editor (catalogue, imports, review)</option><option value="admin">Admin (everything + users)</option><option value="merchant">Merchant (one store's portal)</option></select></label>
+<label>Store (for merchants)<select name="retailer_id"><option value="">—</option>{% for r in retailers %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label></div>
+<button class="primary">Create user</button><p class="small mute">A temporary password is shown once. Staff must set up two-step verification on first login.</p></form>
+<div class="tablewrap" style="margin-top:12px"><table><tr><th>User</th><th>Role</th><th>MFA</th><th>Last login</th><th></th></tr>
+{% for x in users %}<tr><td>{{ x.email }}<div class="small mute">{{ x.name or '' }}{% if x.retailer %} · {{ x.retailer.name }}{% endif %}{% if not x.active %} · inactive{% endif %}</div></td><td>{{ x.role }}</td><td>{{ 'on' if x.totp_secret else 'off' }}</td><td class="small">{{ x.last_login_at|ago if x.last_login_at else '—' }}</td>
+<td style="white-space:nowrap">{% for a,l in [('reset_password','Reset password'),('reset_mfa','Reset MFA'),('toggle','Deactivate' if x.active else 'Activate')] %}<form class="inline" method="post" action="/admin/users/{{ x.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="{{ a }}"><button class="small">{{ l }}</button></form> {% endfor %}</td></tr>{% endfor %}</table></div>
+{% endblock %}

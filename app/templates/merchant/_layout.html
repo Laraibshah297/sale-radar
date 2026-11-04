@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Merchant portal | {{ settings.SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="admin">
+<nav class="side card" style="padding:8px;align-self:start">
+  <div style="padding:8px 12px"><b>{{ user.retailer.name if user.retailer else '' }}</b><div class="small mute">{{ (user.retailer.plan if user.retailer else 'free')|capitalize }} plan</div></div>
+  <a href="/merchant" class="{{ 'on' if request.url.path == '/merchant' }}">Dashboard</a>
+  <a href="/merchant/competitors" class="{{ 'on' if request.url.path.startswith('/merchant/competitors') }}">Competitor prices</a>
+  {% if user.retailer %}<a href="/store/{{ user.retailer.slug }}">Public store page</a>{% endif %}
+  <form method="post" action="/logout" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="small" style="width:100%">Log out</button></form>
+</nav>
+<section style="min-width:0">{% block admin %}{% endblock %}</section></div>
+{% endblock %}
