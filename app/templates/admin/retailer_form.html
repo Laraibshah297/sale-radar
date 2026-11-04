@@ -3,7 +3,7 @@
 <form class="card form" method="post" action="/admin/retailers/save" style="max-width:none">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ r.id or '' }}">
 <div class="two"><label>Name<input name="name" value="{{ r.name or '' }}" required></label><label>Domain (allow-listed for outbound links)<input name="domain" value="{{ r.domain or '' }}" placeholder="store.pk" required></label></div>
-<div class="two"><label>Status<select name="status">{% for s in ['pending','active','suspended'] %}<option {{ 'selected' if r.status==s }}>{{ s }}</option>{% endfor %}</select></label>
+<div class="two"><label>Status<select name="status">{% for s in ['prospect','pending','active','suspended'] %}<option {{ 'selected' if r.status==s }}>{{ s }}</option>{% endfor %}</select></label>
 <label>Plan<select name="plan">{% for s in ['free','pro'] %}<option {{ 'selected' if r.plan==s }}>{{ s }}</option>{% endfor %}</select></label></div>
 <div class="two"><label>City<input name="city" value="{{ r.city or '' }}"></label><label>Delivery regions<input name="delivery_regions" value="{{ r.delivery_regions or '' }}" placeholder="Nationwide / Karachi, Lahore"></label></div>
 <div class="two"><label>Phone<input name="phone" value="{{ r.phone or '' }}"></label><label>Email<input name="email" value="{{ r.email or '' }}"></label></div>

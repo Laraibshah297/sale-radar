@@ -2,11 +2,12 @@
 {% block content %}
 <section class="hero">
   <h1>{{ _("Compare real prices from verified Pakistani stores") }}</h1>
-  <p>Phones, laptops and accessories. Delivered price, warranty, stock and the time each price was last checked, side by side.</p>
-  <form action="/search"><input name="q" placeholder="{{ _('Search phones, laptops, earbuds…') }}" aria-label="Search" autofocus><button>{{ _("Search") }}</button></form>
+  <p>Phones, laptops, TVs, clothing, shoes and more. Delivered price, sizes, warranty, stock and the time each price was last checked, side by side.</p>
+  <form action="/search"><input name="q" placeholder="{{ _('Search phones, laptops, clothes, shoes…') }}" aria-label="Search" autofocus><button>{{ _("Search") }}</button></form>
 </section>
-{% if categories %}<h2>{{ _("Categories") }}</h2>
-<div class="chips">{% for c in categories %}<a class="chip" href="/c/{{ c.slug }}">{{ c.name }}</a>{% endfor %}</div>{% endif %}
+{% if groups %}<h2>{{ _("Categories") }}</h2>
+<div class="cols">{% for g, cs in groups %}<div class="card cat-group" style="margin-top:0"><h3>{{ g }}</h3>
+<div class="chips">{% for c in cs %}<a class="chip" href="/c/{{ c.slug }}">{{ c.name }}</a>{% endfor %}</div></div>{% endfor %}</div>{% endif %}
 {% if popular %}<h2>{{ _("Popular comparisons") }}</h2>
 <div class="grid">{% for c in popular %}{% include "_card.html" %}{% endfor %}</div>{% endif %}
 <div class="cols" style="margin-top:28px">

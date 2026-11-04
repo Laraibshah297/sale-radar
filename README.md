@@ -1,6 +1,6 @@
 # Sale Radar
 
-A Pakistan-first **price comparison platform for phones, laptops and electronics**, built to the *Price Comparison Shopping Platform: Business & Product Blueprint*.
+A Pakistan-first **price comparison platform** for phones, laptops, TVs, appliances, clothing, shoes and beauty, built to the *Price Comparison Shopping Platform: Business & Product Blueprint*.
 
 Shoppers search for an exact model and compare offers from verified local stores: item price, delivered price, warranty, stock, condition and when each price was last checked. Retailers keep their own checkout. We send them traffic.
 
@@ -42,6 +42,23 @@ It costs nothing to run beyond your server: no paid APIs, and everything is open
 **Product matching** follows the blueprint's confidence hierarchy: GTIN → this retailer's earlier SKU match → brand + model number + exact variant → fuzzy suggestions that **always go to human review**. Different storage, RAM, colour, region or condition are never merged.
 
 **Engineering:** PostgreSQL (`pg_trgm` search), DECIMAL prices with explicit currency, full price history, import-run records, allow-listed outbound redirects, bot-click filtering, CSRF protection, bcrypt passwords, TOTP MFA, login throttling, audit log, security headers, nightly backups and automatic HTTPS.
+
+## Categories and filters
+
+13 standard categories in 4 groups, each with its own filters (edit them in **Admin → Categories**):
+
+| Group | Categories | Example filters |
+|---|---|---|
+| Electronics | Mobile Phones, Laptops, Tablets, Smartwatches, Earbuds & Headphones, Power Banks & Chargers, TVs | storage, RAM, PTA, 5G, screen size, refresh rate, processor, GPU, noise cancelling, resolution |
+| Home Appliances | Air Conditioners | tonnage, inverter, energy rating |
+| Fashion | Men's Clothing, Women's Clothing, Unstitched Fabric, Shoes | size (S–XXL, waist, UK shoe sizes), colour, fit, fabric, pieces, season, shoe type |
+| Beauty | Beauty & Personal Care | type, skin type, volume |
+
+Filters are multi-select (e.g. size M **or** L), combine across groups, and show counts. Sizes sort naturally (XS < S < M…, UK 6 < UK 10). New, used and refurbished offers are never ranked together.
+
+Specs come from CSV columns named `spec_<key>` (e.g. `spec_processor`, `spec_fabric`, `spec_gender`); sizes and colours from `variant_size` / `variant_colour`.
+
+**Real stores to approach:** `python -m app.cli seed-prospects` adds 22 Pakistani stores (fashion, shoes, electronics, beauty) as admin-only *prospects*. They are never shown or imported until you set them to active after they agree. 10 of them were confirmed to have a reachable Shopify product feed.
 
 ## Stack
 

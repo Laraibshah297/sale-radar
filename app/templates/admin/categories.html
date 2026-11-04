@@ -1,0 +1,14 @@
+{% extends "admin/_layout.html" %}{% block admin %}
+<h1>Categories &amp; filters</h1>
+<p class="small mute">Choose which filters shoppers see on each category page. Variant filters (size, colour, storage, RAM, PTA) come from product variants. Spec filters come from product specs, which you can import with CSV columns like <code>spec_processor</code> or <code>spec_fabric</code>.</p>
+<form method="post" action="/admin/categories/presets" style="margin-bottom:14px"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="small">Add any missing standard categories</button></form>
+{% for c in cats + [None] %}
+<details class="card" style="margin-bottom:10px" {{ 'open' if c is none and not cats }}>
+<summary style="cursor:pointer"><b>{{ c.name if c else '+ New category' }}</b>{% if c %} <span class="mute small">{{ c.group }} · {{ counts.get(c.id, 0) }} products · {{ c.filter_specs|map('replace','_',' ')|join(', ') }}</span>{% endif %}</summary>
+<form class="form" method="post" action="/admin/categories" style="max-width:none;margin-top:10px"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ c.id if c else '' }}">
+<div class="two"><label>Name<input name="name" value="{{ c.name if c else '' }}" required></label>
+<label>Group<select name="group">{% for g in groups %}<option {{ 'selected' if c and c.group == g }}>{{ g }}</option>{% endfor %}</select></label></div>
+<div class="chips">{% for k, d in filters.items() %}<label class="chip" style="cursor:pointer;font-weight:400"><input type="checkbox" name="filters" value="{{ k }}" {{ 'checked' if c and k in c.filter_specs }}> {{ d.label }} <span class="mute small">({{ d.source }})</span></label>{% endfor %}</div>
+<button class="primary">Save</button></form></details>
+{% endfor %}
+{% endblock %}

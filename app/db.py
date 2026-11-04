@@ -35,6 +35,7 @@ def init_db(eng=None):
         with eng.begin() as c:
             c.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS pg_trgm")
     Base.metadata.create_all(eng)
+    _add_missing_columns(eng)
     if eng.dialect.name == "postgresql":
         with eng.begin() as c:
             c.exec_driver_sql(
@@ -48,3 +49,17 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# Columns added after the first release. create_all() doesn't alter existing
+# tables, so add them here (safe to run every start).
+_NEW_COLUMNS = [("categories", "group", "VARCHAR(60) DEFAULT 'Other'")]
+
+
+def _add_missing_columns(eng):
+    from sqlalchemy import inspect
+    insp = inspect(eng)
+    with eng.begin() as c:
+        for table, col, ddl in _NEW_COLUMNS:
+            if col not in {x["name"] for x in insp.get_columns(table)}:
+                c.exec_driver_sql(f'ALTER TABLE {table} ADD COLUMN "{col}" {ddl}')

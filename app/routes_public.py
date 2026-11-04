@@ -8,14 +8,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from .config import settings
+from .filters import GROUP_ORDER
 from .db import get_db
 from .importer import host_allowed
 from .mailer import send_email
 from .models import (Category, ClickEvent, ContactMessage, Offer, PriceAlert, PriceReport, Product,
                      ProductView, Retailer, SearchLog, User, Variant)
 from .security import hash_password, looks_like_bot, require_csrf, session_id
-from .services import (card_for, deal_quality, facets, offers_for_variant, price_history,
-                       search_products, sponsored_for)
+from .services import (DEFAULT_KEYS, card_for, deal_quality, facets, offers_for_variant, price_history,
+                       search_products, sort_cards, sponsored_for)
 from .web import current_user, flash, redirect, render
 
 router = APIRouter()
@@ -31,52 +32,82 @@ def _dec(v):
 @router.get("/")
 def home(request: Request, db: Session = Depends(get_db), _u=Depends(current_user)):
     cats = db.scalars(select(Category).order_by(Category.name)).all()
+    groups = {}
+    for c in cats:
+        groups.setdefault(c.group or "Other", []).append(c)
+    groups = sorted(groups.items(), key=lambda g: GROUP_ORDER.index(g[0]) if g[0] in GROUP_ORDER else 99)
     retailers = db.scalars(select(Retailer).where(Retailer.status == "active", Retailer.verified)
                            .order_by(Retailer.name)).all()
     popular, _, _ = search_products(db, "", limit=8)
-    return render(request, "home.html", {"categories": cats, "retailers": retailers, "popular": popular})
+    return render(request, "home.html", {"categories": cats, "groups": groups, "retailers": retailers,
+                                         "popular": popular})
 
 
 @router.get("/search")
-def search(request: Request, q: str = "", brand: str = "", store: int | None = None, min: str = "",
-           max: str = "", stock: int = 0, storage: str = "", ram: str = "", sort: str = "relevance",
-           page: int = 1, db: Session = Depends(get_db), _u=Depends(current_user)):
-    return _listing(request, db, q=q, category=None, brand=brand, store=store, min_=min, max_=max,
-                    stock=stock, storage=storage, ram=ram, sort=sort, page=page)
+def search(request: Request, q: str = "", db: Session = Depends(get_db), _u=Depends(current_user)):
+    return _listing(request, db, q=q, category=None)
 
 
 @router.get("/c/{slug}")
-def category(slug: str, request: Request, brand: str = "", store: int | None = None, min: str = "",
-             max: str = "", stock: int = 0, storage: str = "", ram: str = "", sort: str = "relevance",
-             page: int = 1, db: Session = Depends(get_db), _u=Depends(current_user)):
+def category(slug: str, request: Request, db: Session = Depends(get_db), _u=Depends(current_user)):
     cat = db.scalar(select(Category).where(Category.slug == slug))
     if not cat:
         raise HTTPException(404)
-    return _listing(request, db, q="", category=cat, brand=brand, store=store, min_=min, max_=max,
-                    stock=stock, storage=storage, ram=ram, sort=sort, page=page)
+    return _listing(request, db, q="", category=cat)
 
 
-def _listing(request, db, *, q, category, brand, store, min_, max_, stock, storage, ram, sort, page):
-    page = max(page, 1)
+def _int(v, default=None):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _listing(request, db, *, q, category):
+    qp = request.query_params
+    page = max(_int(qp.get("page"), 1), 1)
     per = 24
-    kw = dict(category=category, brand=brand or None, retailer_id=store, min_price=_dec(min_),
-              max_price=_dec(max_), in_stock=bool(stock), spec_filters={"storage": storage, "ram": ram})
-    cards, total, fuzzy = search_products(db, q, sort=sort, limit=per, offset=(page - 1) * per, **kw)
+    sort = qp.get("sort") or "relevance"
+    store = _int(qp.get("store"))
+    brands = [b for b in qp.getlist("brand") if b]
+    # which filters to offer: the category's list, or a general set when searching everywhere
     all_cards, _, _ = search_products(db, q, category=category, limit=10000)
+    keys = (category.filter_specs if category and category.filter_specs else None)
+    if not keys:
+        cats = {c.product.category.slug for c in all_cards if c.product.category}
+        keys = (db.scalar(select(Category).where(Category.slug == next(iter(cats)))).filter_specs
+                if len(cats) == 1 else DEFAULT_KEYS)
+    chosen = {k: [v for v in qp.getlist(k) if v] for k in keys}
+    chosen = {k: v for k, v in chosen.items() if v}
+    kw = dict(category=category, retailer_id=store, min_price=_dec(qp.get("min")),
+              max_price=_dec(qp.get("max")), in_stock=qp.get("stock") == "1", spec_filters=chosen)
+    cards, total, fuzzy = [], 0, False
+    for b in (brands or [None]):  # brands are OR'd
+        cs, _, fz = search_products(db, q, brand=b, sort=sort, limit=10000, **kw)
+        cards += cs
+        fuzzy = fuzzy or fz
+    if len(brands) > 1:
+        cards = sort_cards(cards, q, sort)
+    total = len(cards)
+    cards = cards[(page - 1) * per: page * per]
     if q and page == 1:
         db.add(SearchLog(query=q[:300], results=total, session_id=session_id(request)))
         db.commit()
     retailers = db.scalars(select(Retailer).where(Retailer.status == "active").order_by(Retailer.name)).all()
     sponsored = sponsored_for(db, category_id=category.id) if category else []
+    active = [(k, v) for k, vals in chosen.items() for v in vals] + [("brand", b) for b in brands]
+    base_qs = [(k, v) for k, v in qp.multi_items() if k != "page"]
     return render(request, "listing.html", {
-        "q": q, "category": category, "cards": cards, "total": total, "fuzzy": fuzzy, "facets": facets(all_cards),
-        "retailers": retailers, "sponsored": sponsored, "page": page, "pages": (total + per - 1) // per,
-        "f": {"brand": brand, "store": store, "min": min_, "max": max_, "stock": stock, "storage": storage,
-              "ram": ram, "sort": sort}})
+        "q": q, "category": category, "cards": cards, "total": total, "fuzzy": fuzzy,
+        "facets": facets(all_cards, keys), "retailers": retailers, "sponsored": sponsored,
+        "page": page, "pages": (total + per - 1) // per, "chosen": chosen, "brands": brands, "active": active,
+        "base_qs": base_qs,
+        "f": {"store": store, "min": qp.get("min", ""), "max": qp.get("max", ""), "stock": qp.get("stock") == "1",
+              "sort": sort}})
 
 
 @router.get("/p/{slug}")
-def product(slug: str, request: Request, v: int | None = None, sort: str = "delivered", ref: str = "",
+def product(slug: str, request: Request, v: int | None = None, sort: str = "delivered", ref: str = "", cond: str = "",
             db: Session = Depends(get_db), _u=Depends(current_user)):
     p = db.scalar(select(Product).where(Product.slug == slug)
                   .options(selectinload(Product.variants), selectinload(Product.category)))
@@ -88,6 +119,11 @@ def product(slug: str, request: Request, v: int | None = None, sort: str = "deli
     variant = next((x for x in variants if x.id == v), None) or (
         max(variants, key=lambda x: counts[x.id]) if variants else None)
     offers = offers_for_variant(db, variant, sort=sort) if variant else []
+    # never rank new against used/refurbished: one condition at a time
+    conditions = sorted({o.condition for o in offers}, key=lambda c: (c != "new", c))
+    cond = cond if cond in conditions else (conditions[0] if conditions else "new")
+    offers = [o for o in offers if o.condition == cond]
+    pickers = variant_pickers(variants, variant, counts)
     hist = price_history(db, variant) if variant else []
     in_stock = [o for o in offers if o.stock_status != "out_of_stock"]
     current_low = min((o.price for o in in_stock), default=None)
@@ -98,7 +134,35 @@ def product(slug: str, request: Request, v: int | None = None, sort: str = "deli
         "history": hist, "deal": deal_quality(current_low, hist), "current_low": current_low,
         "sponsored": sponsored_for(db, variant=variant) if variant else [],
         "card": card_for(p, offers),
+        "pickers": pickers, "conditions": conditions, "cond": cond,
         "suggest": int(current_low * Decimal("0.95") // 100 * 100) if current_low else None})
+
+
+PICK_ATTRS = [("colour", "Colour"), ("size", "Size"), ("storage", "Storage"), ("ram", "RAM"), ("region", "PTA / region")]
+
+
+def variant_pickers(variants, current, counts):
+    """One row of choices per attribute that differs between variants
+    (e.g. Colour and Size). Each choice links to the variant that keeps the
+    other current attributes; if that combination doesn't exist it links to
+    the closest one and is shown faded."""
+    from .filters import value_sort_key
+    if not current or len(variants) < 2:
+        return []
+    rows = []
+    for attr, label in PICK_ATTRS:
+        values = {getattr(v, attr) for v in variants if getattr(v, attr)}
+        if len(values) < 2:
+            continue
+        choices = []
+        for val in sorted(values, key=lambda x: value_sort_key(attr, x)):
+            same = [v for v in variants if getattr(v, attr) == val]
+            exact = [v for v in same if all(getattr(v, a) == getattr(current, a) for a, _ in PICK_ATTRS if a != attr)]
+            target = max(exact or same, key=lambda v: counts.get(v.id, 0))
+            choices.append((val, target.id, val == getattr(current, attr),
+                            bool(exact) and counts.get(target.id, 0) > 0))
+        rows.append((label, choices))
+    return rows
 
 
 @router.get("/go/{offer_id}")
@@ -131,12 +195,26 @@ def store(slug: str, request: Request, db: Session = Depends(get_db), _u=Depends
 
 
 @router.get("/stores")
-def stores(request: Request, db: Session = Depends(get_db), _u=Depends(current_user)):
+def stores(request: Request, c: str = "", db: Session = Depends(get_db), _u=Depends(current_user)):
     rs = db.scalars(select(Retailer).where(Retailer.status == "active").order_by(Retailer.verified.desc(),
                                                                                   Retailer.name)).all()
     counts = dict(db.execute(select(Offer.retailer_id, func.count()).where(Offer.active)
                              .group_by(Offer.retailer_id)).all())
-    return render(request, "stores.html", {"retailers": rs, "counts": counts})
+    # which categories each store sells, from its live offers
+    rows = db.execute(select(Offer.retailer_id, Category.id).join(Variant, Variant.id == Offer.variant_id)
+                      .join(Product, Product.id == Variant.product_id).join(Category, Category.id == Product.category_id)
+                      .where(Offer.active, Offer.match_status == "matched").distinct()).all()
+    cats = {x.id: x for x in db.scalars(select(Category).order_by(Category.name))}
+    store_cats = {}
+    for rid, cid in rows:
+        store_cats.setdefault(rid, []).append(cats[cid])
+    current = next((x for x in cats.values() if x.slug == c), None)
+    if current:
+        rs = [r for r in rs if current in store_cats.get(r.id, [])]
+    used = sorted({x for v in store_cats.values() for x in v}, key=lambda x: (
+        GROUP_ORDER.index(x.group) if x.group in GROUP_ORDER else 99, x.name))
+    return render(request, "stores.html", {"retailers": rs, "counts": counts, "store_cats": store_cats,
+                                           "cats": used, "current": current})
 
 
 # ---------------------------------------------------------------- alerts

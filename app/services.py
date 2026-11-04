@@ -2,7 +2,7 @@
 freshness labels, price history and deal quality, and search."""
 import statistics
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -14,7 +14,10 @@ from .config import settings, stale_hours_for
 from .db import is_postgres
 from .models import (Category, Offer, PriceHistory, Product, Retailer, SponsoredCampaign, Variant,
                      now)
+from .filters import filter_label, filter_source, value_sort_key
 from .text import compact, norm, synonyms, tokens
+
+VARIANT_KEYS = {"storage", "ram", "colour", "size", "region"}
 
 
 def age_hours(ts: datetime) -> float:
@@ -155,18 +158,24 @@ class ProductCard:
     updated: datetime | None
     in_stock: bool
     key_spec: str
+    offers: list = field(default_factory=list)
 
 
 def card_for(product: Product, offers: list[Offer]) -> ProductCard:
     live = [o for o in offers if o.stock_status != "out_of_stock"] or offers
+    live = [o for o in live if o.condition == "new"] or live  # headline price = new, if sold new
     lowest = min((o.price for o in live), default=None)
     deliv = [o.delivered_price for o in live if o.delivered_price is not None]
-    spec_bits = [v for v in {v.storage for v in product.variants if v.storage}]
-    key_spec = ", ".join(sorted(spec_bits)[:3]) or (product.model_number or "")
+    storages = sorted({v.storage for v in product.variants if v.storage}, key=lambda x: value_sort_key("storage", x))
+    sizes = sorted({v.size for v in product.variants if v.size}, key=lambda x: value_sort_key("size", x))
+    if sizes:
+        key_spec = f"Sizes {sizes[0]}–{sizes[-1]}" if len(sizes) > 2 else "Sizes " + ", ".join(sizes)
+    else:
+        key_spec = ", ".join(storages[:3]) or (product.model_number or "")
     return ProductCard(product, lowest, min(deliv) if deliv else None,
                        len({o.retailer_id for o in offers}),
                        max((o.checked_at for o in offers), default=None),
-                       any(o.stock_status != "out_of_stock" for o in offers), key_spec)
+                       any(o.stock_status != "out_of_stock" for o in offers), key_spec, offers)
 
 
 def _offers_by_product(db: Session, product_ids):
@@ -216,11 +225,7 @@ def search_products(db: Session, q: str = "", *, category: Category | None = Non
         os_ = offers.get(p.id, [])
         if retailer_id:
             os_ = [o for o in os_ if o.retailer_id == retailer_id]
-        if spec_filters:
-            ok_variants = {v.id for v in p.variants
-                           if all(compact(getattr(v, k, None) or "") == compact(val)
-                                  for k, val in spec_filters.items() if val)}
-            os_ = [o for o in os_ if o.variant_id in ok_variants]
+        os_ = apply_filters(p, os_, spec_filters or {})
         if not os_:
             continue
         c = card_for(p, os_)
@@ -232,6 +237,12 @@ def search_products(db: Session, q: str = "", *, category: Category | None = Non
             continue
         cards.append(c)
 
+    cards = sort_cards(cards, q, sort)
+    return cards[offset:offset + limit], len(cards), fuzzy_used
+
+
+def sort_cards(cards, q, sort):
+    toks = tokens(q)
     if sort == "price_asc":
         cards.sort(key=lambda c: (c.lowest is None, c.lowest or 0))
     elif sort == "price_desc":
@@ -246,12 +257,61 @@ def search_products(db: Session, q: str = "", *, category: Category | None = Non
                                   -c.stores))
     else:
         cards.sort(key=lambda c: (-c.stores, c.product.title))
-    return cards[offset:offset + limit], len(cards), fuzzy_used
+    return cards
 
 
-def facets(cards: list[ProductCard]):
-    brands = sorted({c.product.brand for c in cards})
-    storages = sorted({v.storage for c in cards for v in c.product.variants if v.storage},
-                      key=lambda s: (len(s), s))
-    rams = sorted({v.ram for c in cards for v in c.product.variants if v.ram}, key=lambda s: (len(s), s))
-    return {"brands": brands, "storage": storages, "ram": rams}
+def _variant_val(v, key):
+    return getattr(v, key, None) if key in VARIANT_KEYS else None
+
+
+def apply_filters(product: Product, offers: list[Offer], filters: dict) -> list[Offer]:
+    """filters: {key: [values]}. Values within a key are OR; keys are AND."""
+    for key, values in filters.items():
+        wanted = {compact(x) for x in (values if isinstance(values, (list, tuple, set)) else [values]) if x}
+        if not wanted:
+            continue
+        src = filter_source(key)
+        if src == "spec":
+            if compact((product.specs or {}).get(key, "")) not in wanted:
+                return []
+        elif src == "variant":
+            ok = {v.id for v in product.variants if compact(_variant_val(v, key) or "") in wanted}
+            offers = [o for o in offers if o.variant_id in ok]
+        elif src == "offer":
+            offers = [o for o in offers if compact(getattr(o, key, "")) in wanted]
+        if not offers:
+            return []
+    return offers
+
+
+DEFAULT_KEYS = ["storage", "ram", "size", "colour", "condition"]
+
+
+def facets(cards: list[ProductCard], keys: list[str] | None = None):
+    """Returns brands plus [(key, label, [(value, count)])] for the filter keys,
+    showing only values that exist in the current results."""
+    keys = keys or DEFAULT_KEYS
+    brands = sorted({c.product.brand for c in cards}, key=str.lower)
+    out = []
+    for key in keys:
+        src = filter_source(key)
+        counts: dict[str, int] = {}
+        display: dict[str, str] = {}
+        for c in cards:
+            vals = set()
+            if src == "spec":
+                v = (c.product.specs or {}).get(key)
+                if v:
+                    vals.add(str(v))
+            elif src == "variant":
+                vals = {str(_variant_val(v, key)) for v in c.product.variants if _variant_val(v, key)}
+            elif src == "offer":
+                vals = {str(getattr(o, key)) for o in c.offers}
+            for v in vals:
+                k = compact(v)
+                display.setdefault(k, v)
+                counts[k] = counts.get(k, 0) + 1
+        if counts:
+            vals = sorted(((display[k], n) for k, n in counts.items()), key=lambda x: value_sort_key(key, x[0]))
+            out.append((key, filter_label(key), vals))
+    return {"brands": brands, "groups": out}

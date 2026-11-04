@@ -16,7 +16,7 @@ from .services import freshness, humanize_age
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 UR = {
-    "Search": "تلاش", "Search phones, laptops, earbuds…": "موبائل، لیپ ٹاپ، ائیربڈز تلاش کریں…",
+    "Search": "تلاش", "Search phones, laptops, clothes, shoes…": "موبائل، لیپ ٹاپ، کپڑے، جوتے تلاش کریں…",
     "Compare real prices from verified Pakistani stores": "تصدیق شدہ پاکستانی اسٹورز کی اصل قیمتوں کا موازنہ کریں",
     "Categories": "زمرے", "Verified stores": "تصدیق شدہ اسٹورز", "How prices are checked": "قیمتیں کیسے چیک ہوتی ہیں",
     "Popular comparisons": "مقبول موازنے", "Lowest price": "کم ترین قیمت", "stores": "اسٹورز",
@@ -135,3 +135,16 @@ def jsonld(product, variant, offers) -> str:
 
 
 templates.env.globals.update(chart_svg=chart_svg, jsonld=jsonld)
+
+
+def qs(pairs, drop: tuple | None = None, **set_):
+    """Build a query string from (key, value) pairs, optionally dropping one
+    (key, value) pair and overriding keys, e.g. qs(base_qs, page=2)."""
+    from urllib.parse import urlencode
+    out = [(k, v) for k, v in pairs if not (drop and k == drop[0] and v == drop[1]) and k not in set_]
+    out += [(k, v) for k, v in set_.items() if v not in (None, "")]
+    return "?" + urlencode(out)
+
+
+from .filters import filter_label as _fl  # noqa: E402
+templates.env.globals.update(qs=qs, spec_label=_fl)

@@ -42,7 +42,8 @@ class Category(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
     slug: Mapped[str] = mapped_column(String(120), unique=True)
-    # spec keys shown as filters on the category page, e.g. ["storage", "ram"]
+    group: Mapped[str] = mapped_column(String(60), default="Other")  # Electronics, Fashion, ...
+    # filter keys shown on the category page (see app/filters.py), e.g. ["storage", "ram"]
     filter_specs: Mapped[list] = mapped_column(JSON, default=list)
 
 

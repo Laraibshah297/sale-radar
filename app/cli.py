@@ -3,6 +3,7 @@
   init-db                      create tables
   create-admin EMAIL           create an admin user (prints a temporary password)
   seed-demo                    load clearly-labelled demo stores, products and history
+  seed-prospects               add real stores to approach (admin-only outreach list)
   import-csv FILE [--retailer SLUG]
   run-feeds                    import every active retailer's feed URL / permitted feed
   check-alerts                 email price alerts that hit their target
@@ -26,6 +27,7 @@ def main(argv=None):
     sub.add_parser("init-db")
     a = sub.add_parser("create-admin"); a.add_argument("email"); a.add_argument("--password")
     sub.add_parser("seed-demo")
+    sub.add_parser("seed-prospects")
     i = sub.add_parser("import-csv"); i.add_argument("file"); i.add_argument("--retailer")
     for c in ("run-feeds", "check-alerts", "run-jobs", "scheduler"):
         sub.add_parser(c)
@@ -46,6 +48,10 @@ def main(argv=None):
         from .demo import seed
         with SessionLocal() as db:
             print(seed(db))
+    elif args.cmd == "seed-prospects":
+        from .prospects import seed_prospects
+        with SessionLocal() as db:
+            print(seed_prospects(db))
     elif args.cmd == "import-csv":
         from .importer import import_csv_text
         with SessionLocal() as db:

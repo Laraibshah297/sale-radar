@@ -44,8 +44,10 @@ def shopify_rows(retailer: Retailer, max_pages: int = 20):
         if not products:
             return
         for p in products:
+            names = [str(o.get("name", "")).lower() for o in (p.get("options") or [])]
             for v in p.get("variants") or []:
                 opts = [v.get("option1"), v.get("option2"), v.get("option3")]
+                named = {n: o for n, o in zip(names, opts) if o}
                 imgs = p.get("images") or []
                 yield {
                     "product_url": f"https://{retailer.domain}/products/{p.get('handle')}?variant={v.get('id')}",
@@ -55,8 +57,9 @@ def shopify_rows(retailer: Retailer, max_pages: int = 20):
                     "model_number": v.get("sku") or "",
                     "gtin": v.get("barcode") or "",
                     "category": p.get("product_type") or "",
-                    "storage_capacity": next((o for o in opts if o and "gb" in o.lower()), ""),
-                    "variant_colour": next((o for o in opts if o and "gb" not in o.lower()), ""),
+                    "storage_capacity": named.get("storage") or next((o for o in opts if o and "gb" in o.lower()), ""),
+                    "variant_size": named.get("size") or named.get("shoe size") or "",
+                    "variant_colour": named.get("color") or named.get("colour") or "",
                     "price": v.get("price"),
                     "stock_status": "in_stock" if v.get("available", True) else "out_of_stock",
                     "image_url": imgs[0]["src"] if imgs else "",
@@ -65,6 +68,8 @@ def shopify_rows(retailer: Retailer, max_pages: int = 20):
 
 
 def run_feed(db: Session, retailer: Retailer) -> ImportRun:
+    if retailer.status != "active":
+        raise PermissionError("Only active stores (that agreed to share data) can be imported")
     if retailer.feed_method == "feed_url" and retailer.feed_url:
         text = fetch(retailer.feed_url).text
         return import_csv_text(db, text, source="feed_url", retailer=retailer, filename=retailer.feed_url,

@@ -15,6 +15,7 @@ from rapidfuzz import fuzz
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .filters import CATEGORY_PRESETS, normalise_spec_key
 from .models import Category, Offer, Product, Variant
 from .text import compact, norm, norm_storage, search_text_for, slugify
 
@@ -57,16 +58,46 @@ def find_product_by_model(db: Session, brand: str, model_number: str) -> Product
     return None
 
 
+def _preset_for(name: str):
+    n = compact(name)
+    for group, pname, pslug, keys in CATEGORY_PRESETS:
+        if n in (compact(pname), compact(pslug)):
+            return group, pname, pslug, keys
+    return None
+
+
 def get_or_create_category(db: Session, name: str | None) -> Category | None:
     if not name:
         return None
-    slug = slugify(name)
+    preset = _preset_for(name)
+    slug = preset[2] if preset else slugify(name)
     cat = db.scalar(select(Category).where(Category.slug == slug))
     if not cat:
-        cat = Category(name=name.strip().title(), slug=slug, filter_specs=["storage", "ram"])
+        if preset:
+            cat = Category(group=preset[0], name=preset[1], slug=slug, filter_specs=list(preset[3]))
+        else:
+            cat = Category(group="Other", name=name.strip().title(), slug=slug,
+                           filter_specs=["colour", "size", "condition"])
         db.add(cat)
         db.flush()
     return cat
+
+
+def specs_from_row(row) -> dict:
+    """CSV columns named spec_<key> (e.g. spec_processor) become product specs."""
+    out = {}
+    for k, v in row.items():
+        if k and k.startswith("spec_") and v not in (None, ""):
+            out[normalise_spec_key(k[5:])] = str(v).strip()
+    return out
+
+
+def merge_specs(product: Product, row) -> None:
+    """Fill in specs the product doesn't have yet; never overwrite admin edits."""
+    new = specs_from_row(row)
+    missing = {k: v for k, v in new.items() if k not in (product.specs or {})}
+    if missing:
+        product.specs = {**(product.specs or {}), **missing}
 
 
 def create_variant(db: Session, product: Product, row) -> Variant:
@@ -93,8 +124,8 @@ def canonical_title(row) -> str:
     title = row["product_title"].strip()
     for key in ("storage_capacity", "ram", "variant_colour", "variant_size", "region"):
         val = (row.get(key) or "").strip()
-        if val:
-            title = re.sub(rf"\(?\b{re.escape(val)}\b\s*(ram)?\)?", " ", title, flags=re.I)
+        if len(val) >= 2:  # never strip one-letter sizes like "S" or "M" out of words
+            title = re.sub(rf"\(?(?<![\w']){re.escape(val)}(?![\w'])\s*(ram)?\)?", " ", title, flags=re.I)
     title = re.sub(r"\b\d+\s?(gb|tb)(\s?ram)?\b", " ", title, flags=re.I)
     title = re.sub(r"\s+[-/|,]\s*$", "", re.sub(r"\s+", " ", title)).strip(" -/|,")
     return title or row["product_title"].strip()
@@ -104,7 +135,7 @@ def create_product(db: Session, row) -> Product:
     title = canonical_title(row)
     p = Product(title=title, brand=row["brand"].strip(), model_number=(row.get("model_number") or None),
                 category=get_or_create_category(db, row.get("category")),
-                image_url=row.get("image_url") or None, specs={})
+                image_url=row.get("image_url") or None, specs=specs_from_row(row))
     p.slug = unique_slug(db, slugify(f"{p.brand} {title}" if p.brand.lower() not in title.lower() else title))
     db.add(p)
     db.flush()

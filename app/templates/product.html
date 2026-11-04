@@ -10,12 +10,15 @@
 <div class="pd">
   <div>
     <div class="imgbox">{% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}">{% else %}<img src="/static/placeholder.svg" alt="" width="200">{% endif %}</div>
-    {% if p.specs %}<div class="card" style="margin-top:14px"><h3>Key specs</h3><table>{% for k,v in p.specs.items() %}<tr><td class="mute">{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}</table></div>{% endif %}
+    {% if p.specs %}<div class="card" style="margin-top:14px"><h3>Key specs</h3><table>{% for k,v in p.specs.items() %}<tr><td class="mute">{{ spec_label(k) }}</td><td>{{ v }}</td></tr>{% endfor %}</table></div>{% endif %}
   </div>
   <div>
     <h1>{{ p.title }}</h1>
     <p class="mute">{{ p.brand }}{% if p.model_number %} · Model {{ p.model_number }}{% endif %}</p>
-    {% if variants|length > 1 %}<div class="variants" aria-label="Variants">
+    {% if pickers %}{% for label, choices in pickers %}<div class="variant-pick"><div class="lbl">{{ label }}</div><div class="variants">
+      {% for val, vid, on, ok in choices %}<a href="?v={{ vid }}" class="{{ 'on' if on }}{{ ' na' if not ok and not on }}" {% if not ok and not on %}title="Not available in this combination"{% endif %}>{{ val }}</a>{% endfor %}
+    </div></div>{% endfor %}
+    {% elif variants|length > 1 %}<div class="variants" aria-label="Variants">
       {% for x in variants %}<a href="?v={{ x.id }}" class="{{ 'on' if variant and x.id == variant.id }}">{{ x.label }} <span class="mute small">({{ counts[x.id] }})</span></a>{% endfor %}
     </div>{% endif %}
     <div class="card" style="display:flex;flex-wrap:wrap;gap:18px;align-items:center">
@@ -26,10 +29,11 @@
     </div>
 
     <h2>{{ _("Offers") }} <span class="small mute">for {{ variant.label if variant else '' }}</span></h2>
+    {% if conditions|length > 1 %}<div class="chips" style="margin-bottom:8px">{% for c in conditions %}<a class="chip {{ 'on' if c == cond }}" href="?v={{ variant.id }}&cond={{ c }}&sort={{ sort }}">{{ c|replace('_',' ')|capitalize }}</a>{% endfor %}</div>{% endif %}
     <p class="small">Sort:
-      <a href="?v={{ variant.id }}&sort=delivered" {{ 'style=font-weight:700' if sort=='delivered' }}>lowest delivered price</a> ·
-      <a href="?v={{ variant.id }}&sort=item" {{ 'style=font-weight:700' if sort=='item' }}>lowest item price</a> ·
-      <a href="?v={{ variant.id }}&sort=newest" {{ 'style=font-weight:700' if sort=='newest' }}>newest update</a></p>
+      <a href="?v={{ variant.id }}&cond={{ cond }}&sort=delivered" {{ 'style=font-weight:700' if sort=='delivered' }}>lowest delivered price</a> ·
+      <a href="?v={{ variant.id }}&cond={{ cond }}&sort=item" {{ 'style=font-weight:700' if sort=='item' }}>lowest item price</a> ·
+      <a href="?v={{ variant.id }}&cond={{ cond }}&sort=newest" {{ 'style=font-weight:700' if sort=='newest' }}>newest update</a></p>
     {% if offers %}
     <div class="tablewrap"><table class="offers">
       <thead><tr><th>{{ _("Store") }}</th><th>{{ _("Price") }}</th><th>{{ _("Shipping") }}</th><th>{{ _("Warranty") }} / condition</th><th>{{ _("Stock") }}</th><th></th></tr></thead>
@@ -52,6 +56,7 @@
               <button class="small">Send report</button></form></details></td>
       </tr>{% endfor %}</tbody>
     </table></div>
+    {% if variant and variant.size %}<p class="small mute">Sizes can differ between brands. Check the size chart on the store's website before buying.</p>{% endif %}
     <p class="disclaimer">Ranked by {{ 'lowest delivered price (offers with unknown shipping are listed after, by item price)' if sort=='delivered' else ('lowest item price' if sort=='item' else 'most recent update') }}. Ranking is never affected by advertising or commission. {{ _("We are not the seller. Prices and stock can change; always verify at the retailer's checkout.") }} <a href="/page/affiliate-disclosure">Some links may earn us a commission.</a></p>
     {% else %}<div class="card"><p>No live offers for this variant right now.</p></div>{% endif %}
 

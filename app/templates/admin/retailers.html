@@ -1,8 +1,9 @@
 {% extends "admin/_layout.html" %}{% block admin %}
 <h1>Retailers <a class="btn small primary" href="/admin/retailers/new">+ Add retailer</a></h1>
+<p class="small mute">Status <span class="badge blue">prospect</span> means a store you plan to approach: hidden from shoppers and never imported. Set it to <b>active</b> once the store agrees to share data, and record the permission.</p>
 <div class="tablewrap"><table><tr><th>Store</th><th>Status</th><th>Feed</th><th>Plan</th><th>Offers</th><th>Clicks 30d</th><th>Last import</th></tr>
 {% for r in retailers %}<tr><td><a href="/admin/retailers/{{ r.id }}"><b>{{ r.name }}</b></a> {% if r.verified %}<span class="badge blue">✔</span>{% endif %}<div class="small mute">{{ r.domain }}</div></td>
-<td><span class="badge {{ 'good' if r.status=='active' else ('warn' if r.status=='pending' else 'bad') }}">{{ r.status }}</span></td>
-<td class="small">{{ r.feed_method }}{% if not r.permission_reference %}<div class="badge bad">no permission recorded</div>{% endif %}</td><td>{{ r.plan }}</td>
+<td><span class="badge {{ {'active':'good','pending':'warn','prospect':'blue'}.get(r.status,'bad') }}">{{ r.status }}</span></td>
+<td class="small">{{ r.feed_method }}{% if r.status == 'prospect' %}<div class="mute">{{ (r.verification_notes or '')[:90] }}</div>{% elif not r.permission_reference %}<div class="badge bad">no permission recorded</div>{% endif %}</td><td>{{ r.plan }}</td>
 <td>{{ counts.get(r.id,0) }}</td><td>{{ clicks.get(r.id,0) }}</td><td class="small">{{ r.last_import_at|ago if r.last_import_at else '—' }}</td></tr>{% endfor %}</table></div>
 {% endblock %}

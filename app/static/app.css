@@ -98,3 +98,17 @@ svg.chart text{fill:var(--mute);font-size:11px}
 }
 @media(max-width:640px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.pcard .body{padding:9px}.price{font-size:16px}.hero{padding:26px 18px}.hero h1{font-size:24px}}
 [dir=rtl] .hero input{border-radius:0 12px 12px 0}[dir=rtl] .hero button{border-radius:12px 0 0 12px}
+.fgroup{border:0;border-top:1px solid var(--line);margin:12px 0 0;padding:10px 0 0}
+.fgroup legend{font-size:13px;font-weight:700;padding:0}
+.opts{display:grid;gap:4px;max-height:220px;overflow:auto}
+.filters label.check{display:flex;gap:8px;align-items:center;margin:0;color:var(--ink);font-size:14px;cursor:pointer}
+.sizes{display:flex;flex-wrap:wrap;gap:6px}
+.filters label.sz{margin:0;min-width:42px;padding:6px 8px;text-align:center;border:1px solid var(--line);border-radius:8px;color:var(--ink);font-size:13px;cursor:pointer;background:var(--card)}
+.filters label.sz input{position:absolute;opacity:0;pointer-events:none}
+.filters label.sz.on{border-color:var(--brand2);background:var(--brand2);color:#fff;font-weight:600}
+.chip.on{border-color:var(--brand2);color:var(--brand2);font-weight:600}
+details.filters-mobile>summary{list-style:none;display:none}
+@media(max-width:860px){details.filters-mobile>summary{display:block}details.filters-mobile:not([open]) form{display:none}}
+.cat-group{margin-top:18px}.cat-group h3{font-size:14px;color:var(--mute);text-transform:uppercase;letter-spacing:.04em}
+.variant-pick{margin:10px 0}.variant-pick .lbl{font-size:13px;color:var(--mute);margin-bottom:4px}
+.variants a.na{opacity:.45;text-decoration:line-through}

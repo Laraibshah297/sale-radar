@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .matching import match_row
+from .matching import match_row, merge_specs
 from .models import (ImportReject, ImportRun, MatchCandidate, Offer, PriceHistory, Retailer,
                      now)
 from .text import search_text_for
@@ -20,6 +20,8 @@ CSV_COLUMNS = ["retailer_name", "retailer_domain", "product_url", "retailer_sku"
                "storage_capacity", "ram", "region", "condition", "price", "currency",
                "shipping_cost", "stock_status", "warranty_type", "image_url", "checked_at",
                "permission_reference"]
+# plus any number of spec_<key> columns, e.g. spec_processor, spec_screen_size,
+# spec_fabric, spec_gender (see app/filters.py for the keys each category filters on)
 REQUIRED = ["product_url", "product_title", "brand", "price"]
 STOCK = {"in_stock", "out_of_stock", "preorder", "limited"}
 STOCK_ALIASES = {"in stock": "in_stock", "instock": "in_stock", "available": "in_stock", "yes": "in_stock",
@@ -188,6 +190,7 @@ def upsert_offer(db: Session, retailer: Retailer, row: dict, run: ImportRun | No
     if offer.variant and offer.variant.product and not offer.variant.product.image_url and offer.image_url:
         offer.variant.product.image_url = offer.image_url
     if offer.variant:
+        merge_specs(offer.variant.product, row)
         offer.variant.product.search_text = search_text_for(offer.variant.product)
     return "ok" if offer.match_status == "matched" else "review"
 

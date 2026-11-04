@@ -635,3 +635,53 @@ def audit_log(request: Request, db: Session = Depends(get_db), u=Depends(require
     logs = db.scalars(select(AuditLog).options(selectinload(AuditLog.user)).order_by(AuditLog.id.desc()).limit(300)).all()
     return render(request, "admin/audit.html", {"logs": logs})
 
+
+
+# ------------------------------------------------------------------ categories & filters
+
+@router.get("/categories")
+def categories(request: Request, db: Session = Depends(get_db), u=Depends(require_staff)):
+    from .filters import FILTERS, GROUP_ORDER
+    cats = db.scalars(select(Category).order_by(Category.group, Category.name)).all()
+    counts = dict(db.execute(select(Product.category_id, func.count()).group_by(Product.category_id)).all())
+    return render(request, "admin/categories.html", {"cats": cats, "counts": counts, "filters": FILTERS,
+                                                     "groups": GROUP_ORDER})
+
+
+@router.post("/categories", dependencies=csrf)
+async def category_save(request: Request, db: Session = Depends(get_db), u=Depends(require_staff)):
+    f = await request.form()
+    cid = f.get("id")
+    c = db.get(Category, int(cid)) if cid else Category()
+    c.name = (f.get("name") or "").strip()
+    if not c.name:
+        flash(request, "Name is required.", "err")
+        return redirect("/admin/categories")
+    c.group = (f.get("group") or "Other").strip()
+    c.filter_specs = [k for k in f.getlist("filters") if k]
+    if not c.slug:
+        c.slug = slugify(c.name)
+        if db.scalar(select(Category.id).where(Category.slug == c.slug)):
+            flash(request, "A category with that name already exists.", "err")
+            return redirect("/admin/categories")
+    db.add(c)
+    db.flush()
+    audit(db, u, "category_save", "category", c.id, filters=",".join(c.filter_specs))
+    db.commit()
+    flash(request, f"Saved {c.name}.")
+    return redirect("/admin/categories")
+
+
+@router.post("/categories/presets", dependencies=csrf)
+def category_presets(request: Request, db: Session = Depends(get_db), u=Depends(require_admin)):
+    """Create any missing standard categories (phones, laptops, clothing, shoes...)."""
+    from .filters import CATEGORY_PRESETS
+    added = 0
+    for group, name, slug, keys in CATEGORY_PRESETS:
+        if not db.scalar(select(Category.id).where(Category.slug == slug)):
+            db.add(Category(group=group, name=name, slug=slug, filter_specs=list(keys)))
+            added += 1
+    audit(db, u, "category_presets", added=added)
+    db.commit()
+    flash(request, f"Added {added} standard categories.")
+    return redirect("/admin/categories")
