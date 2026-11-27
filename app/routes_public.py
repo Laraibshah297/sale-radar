@@ -15,8 +15,8 @@ from .mailer import send_email
 from .models import (Category, ClickEvent, ContactMessage, Offer, PriceAlert, PriceReport, Product,
                      ProductView, Retailer, SearchLog, User, Variant)
 from .security import hash_password, looks_like_bot, require_csrf, session_id
-from .services import (DEFAULT_KEYS, card_for, deal_quality, facets, offers_for_variant, price_history,
-                       search_products, sort_cards, sponsored_for)
+from .services import (DEFAULT_KEYS, card_for, deal_quality, facets, offer_deal_audit, offers_for_variant,
+                       price_history, search_products, sort_cards, sponsored_for, top_price_drops)
 from .web import current_user, flash, redirect, render
 
 router = APIRouter()
@@ -39,8 +39,47 @@ def home(request: Request, db: Session = Depends(get_db), _u=Depends(current_use
     retailers = db.scalars(select(Retailer).where(Retailer.status == "active", Retailer.verified)
                            .order_by(Retailer.name)).all()
     popular, _, _ = search_products(db, "", limit=8)
+    deals = top_price_drops(db, limit=4)
     return render(request, "home.html", {"categories": cats, "groups": groups, "retailers": retailers,
-                                         "popular": popular})
+                                         "popular": popular, "deals": deals})
+
+
+@router.get("/deals")
+def deals_page(request: Request, cat: str = "", db: Session = Depends(get_db), _u=Depends(current_user)):
+    all_deals = top_price_drops(db, limit=48)
+    if cat:
+        all_deals = [d for d in all_deals if d["card"].product.category and d["card"].product.category.slug == cat]
+    cats = db.scalars(select(Category).order_by(Category.name)).all()
+    return render(request, "deals.html", {"deals": all_deals, "categories": cats, "current_cat": cat})
+
+
+@router.get("/compare")
+def compare_page(request: Request, ids: str = "", db: Session = Depends(get_db), _u=Depends(current_user)):
+    raw_ids = [x.strip() for x in ids.split(",") if x.strip().isdigit()]
+    if not raw_ids:
+        raw_ids = [str(x) for x in request.query_params.getlist("id") if str(x).isdigit()]
+    pids = [int(x) for x in raw_ids[:4]]
+    items = []
+    spec_keys = []
+    for pid in pids:
+        p = db.scalar(select(Product).where(Product.id == pid)
+                      .options(selectinload(Product.variants), selectinload(Product.category)))
+        if not p:
+            continue
+        all_offers = []
+        for v in p.variants:
+            all_offers.extend(offers_for_variant(db, v))
+        c = card_for(p, all_offers)
+        best_v = p.variants[0] if p.variants else None
+        hist = price_history(db, best_v) if best_v else []
+        dq = deal_quality(c.lowest, hist)
+        items.append({"p": p, "card": c, "deal": dq, "variant": best_v})
+        for k in (p.specs or {}).keys():
+            if k not in spec_keys:
+                spec_keys.append(k)
+    popular, _, _ = search_products(db, "", limit=12)
+    return render(request, "compare.html", {"items": items, "spec_keys": spec_keys, "popular": popular,
+                                            "selected_ids": pids})
 
 
 @router.get("/search")
@@ -127,11 +166,13 @@ def product(slug: str, request: Request, v: int | None = None, sort: str = "deli
     hist = price_history(db, variant) if variant else []
     in_stock = [o for o in offers if o.stock_status != "out_of_stock"]
     current_low = min((o.price for o in in_stock), default=None)
+    dq = deal_quality(current_low, hist)
+    audits = {o.id: offer_deal_audit(o, dq) for o in offers}
     db.add(ProductView(product_id=p.id, session_id=session_id(request), from_search=(ref == "search")))
     db.commit()
     return render(request, "product.html", {
         "p": p, "variants": variants, "variant": variant, "counts": counts, "offers": offers, "sort": sort,
-        "history": hist, "deal": deal_quality(current_low, hist), "current_low": current_low,
+        "history": hist, "deal": dq, "audits": audits, "current_low": current_low,
         "sponsored": sponsored_for(db, variant=variant) if variant else [],
         "card": card_for(p, offers),
         "pickers": pickers, "conditions": conditions, "cond": cond,
@@ -365,7 +406,8 @@ def robots():
 
 @router.get("/sitemap.xml")
 def sitemap(db: Session = Depends(get_db)):
-    urls = [f"{settings.BASE_URL}/", f"{settings.BASE_URL}/stores"]
+    urls = [f"{settings.BASE_URL}/", f"{settings.BASE_URL}/deals", f"{settings.BASE_URL}/compare",
+            f"{settings.BASE_URL}/stores"]
     urls += [f"{settings.BASE_URL}/c/{s}" for s in db.scalars(select(Category.slug))]
     urls += [f"{settings.BASE_URL}/p/{s}" for s in db.scalars(select(Product.slug))]
     urls += [f"{settings.BASE_URL}/store/{s}" for s in

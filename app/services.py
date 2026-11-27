@@ -135,16 +135,95 @@ def deal_quality(current: Decimal | None, history: list[DailyPoint]) -> dict | N
     recent = [float(p.price) for p in history[-30:]]
     median = statistics.median(recent)
     low = min(recent)
+    high = max(recent)
     cur = float(current)
+    drop_pct = round((median - cur) / median * 100, 1) if median > 0 else 0.0
     if cur <= low:
-        label, tone = "Lowest price seen in 30 days", "good"
+        label, tone, score = "Lowest price seen in 30 days", "good", 95
     elif cur < median * 0.97:
-        label, tone = "Below the usual price", "good"
+        label, tone, score = "Below the usual price", "good", 85
     elif cur > median * 1.03:
-        label, tone = "Above the usual price", "bad"
+        label, tone, score = "Above the usual price", "bad", 35
     else:
-        label, tone = "Usual price", "neutral"
-    return {"label": label, "tone": tone, "median": Decimal(str(round(median))), "low": Decimal(str(low))}
+        label, tone, score = "Usual price", "neutral", 65
+    return {
+        "label": label,
+        "tone": tone,
+        "score": score,
+        "drop_pct": drop_pct,
+        "median": Decimal(str(round(median))),
+        "low": Decimal(str(low)),
+        "high": Decimal(str(high)),
+    }
+
+
+def offer_deal_audit(offer: Offer, deal: dict | None) -> dict:
+    """Evaluates a retailer's claimed discount ('original_price') against our
+    observed 30-day median price to expose artificial 'Fake Markdowns'."""
+    claimed_pct = offer.claimed_discount_pct
+    if not deal:
+        return {
+            "badge": f"Claimed {claimed_pct}% OFF" if claimed_pct else None,
+            "tone": "neutral",
+            "fake_markdown": False,
+            "real_drop_pct": None,
+        }
+    median = float(deal["median"])
+    cur = float(offer.price)
+    real_drop = round((median - cur) / median * 100, 1) if median > 0 else 0.0
+    # Fake markdown: store claims >= 10% off an original_price that is > 8% above the 30-day median,
+    # while current price is actually at or above the 30-day median.
+    if (offer.original_price and float(offer.original_price) > median * 1.08
+            and cur >= median * 0.99 and (claimed_pct or 0) >= 10):
+        return {
+            "badge": f"Inflated 'Was' Price (30d typical Rs {int(median):,})",
+            "tone": "warn",
+            "fake_markdown": True,
+            "real_drop_pct": real_drop,
+        }
+    if real_drop >= 5:
+        return {
+            "badge": f"Verified {int(round(real_drop))}% below 30d median",
+            "tone": "good",
+            "fake_markdown": False,
+            "real_drop_pct": real_drop,
+        }
+    return {
+        "badge": f"{claimed_pct}% off RRP" if claimed_pct else None,
+        "tone": "neutral",
+        "fake_markdown": False,
+        "real_drop_pct": real_drop,
+    }
+
+
+def top_price_drops(db: Session, limit: int = 24) -> list[dict]:
+    """Returns products currently priced below their 30-day observed median,
+    ranked by verified percentage drop — powering the Live Deal Radar."""
+    cards, _, _ = search_products(db, "", in_stock=True, limit=300)
+    deals = []
+    for c in cards:
+        if not c.lowest or not c.product.variants:
+            continue
+        # pick variant with lowest in-stock price
+        best_v = c.product.variants[0]
+        for v in c.product.variants:
+            v_offers = [o for o in c.offers if o.variant_id == v.id and o.stock_status != "out_of_stock"]
+            if v_offers and min(o.price for o in v_offers) == c.lowest:
+                best_v = v
+                break
+        hist = price_history(db, best_v, days=45)
+        dq = deal_quality(c.lowest, hist)
+        if dq and (dq["drop_pct"] >= 2.0 or dq["tone"] == "good"):
+            savings = dq["median"] - c.lowest
+            deals.append({
+                "card": c,
+                "variant": best_v,
+                "deal": dq,
+                "savings": savings if savings > 0 else Decimal("0"),
+                "drop_pct": max(dq["drop_pct"], 0.0),
+            })
+    deals.sort(key=lambda d: (-d["drop_pct"], -float(d["savings"])))
+    return deals[:limit]
 
 
 # ---------------------------------------------------------------- search

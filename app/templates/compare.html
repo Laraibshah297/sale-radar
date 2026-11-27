@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Compare Products Side-by-Side | {{ settings.SITE_NAME }}{% endblock %}
+{% block description %}Compare specifications, lowest delivered prices, 30-day deal quality, and verified store counts side-by-side across Pakistani retailers.{% endblock %}
+{% block content %}
+<h1>⚖ Side-by-Side Product Comparison</h1>
+<p class="mute">Compare up to 4 products across specs, lowest live prices, 30-day typical prices, and store coverage.</p>
+
+{% if items %}
+<div class="tablewrap" style="margin-bottom:24px">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:180px">Feature</th>
+        {% for it in items %}
+        <th>
+          <a href="/p/{{ it.p.slug }}"><b>{{ it.p.title }}</b></a>
+          <div class="small mute">{{ it.p.brand }}{% if it.p.model_number %} · {{ it.p.model_number }}{% endif %}</div>
+          {% set rem_ids = selected_ids|reject('equalto', it.p.id)|list %}
+          <div style="margin-top:6px"><a class="btn small" href="/compare?ids={{ rem_ids|join(',') }}">Remove ✕</a></div>
+        </th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mute"><b>Lowest Live Price</b></td>
+        {% for it in items %}<td><span class="price">{{ it.card.lowest|pkr }}</span></td>{% endfor %}
+      </tr>
+      <tr>
+        <td class="mute"><b>Lowest Delivered</b></td>
+        {% for it in items %}<td>{{ it.card.lowest_delivered|pkr if it.card.lowest_delivered is not none else 'Shipping unknown' }}</td>{% endfor %}
+      </tr>
+      <tr>
+        <td class="mute"><b>30-Day Deal Audit</b></td>
+        {% for it in items %}
+        <td>
+          {% if it.deal %}
+            <span class="badge {{ it.deal.tone }}">{{ it.deal.label }} ({{ it.deal.score }}/100)</span>
+            <div class="small mute">30d median: {{ it.deal.median|pkr }}</div>
+          {% else %}
+            <span class="mute small">Building history</span>
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      <tr>
+        <td class="mute"><b>Verified Stores</b></td>
+        {% for it in items %}<td>{{ it.card.stores }} stores ({% if it.card.in_stock %}<span style="color:var(--good)">In stock</span>{% else %}Out of stock{% endif %})</td>{% endfor %}
+      </tr>
+      <tr>
+        <td class="mute"><b>Variants</b></td>
+        {% for it in items %}<td class="small">{% for v in it.p.variants %}<span class="badge" style="margin:2px">{{ v.label }}</span>{% endfor %}</td>{% endfor %}
+      </tr>
+      {% for k in spec_keys %}
+      <tr>
+        <td class="mute">{{ spec_label(k) }}</td>
+        {% for it in items %}<td>{{ (it.p.specs or {}).get(k, '—') }}</td>{% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3>{% if items %}Add another product to compare{% else %}Select products to compare{% endif %}</h3>
+  <p class="small mute">Click any product below to add it to your side-by-side matrix (up to 4 products).</p>
+  <div class="chips">
+    {% for c in popular %}
+      {% if c.product.id not in selected_ids %}
+        {% set next_ids = (selected_ids + [c.product.id])[:4] %}
+        <a class="chip" href="/compare?ids={{ next_ids|join(',') }}">+ {{ c.product.title }} ({{ c.lowest|pkr }})</a>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

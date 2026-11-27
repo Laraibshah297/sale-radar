@@ -252,6 +252,8 @@ def seed(db):
                 if len(variants) > 4 and rnd.random() < 0.12:
                     continue  # some sizes sold out / not carried
                 price = int(var["price"] * factor / 10) * 10 - (1 if var["price"] > 20000 else 10)
+                orig_price = int(price * rnd.uniform(1.06, 1.22) / 10) * 10 if rnd.random() < 0.45 else ""
+                promo = rnd.choice(["", "", "", "RADAR5", "EIDSALE", "AZADI10", "BLESSED15"])
                 key = "-".join(str(var.get(k, "")) for k in ("storage", "ram", "colour", "size", "region")).strip("-")
                 rows.append({
                     "product_url": f"https://{r.domain}/p/{model.lower()}?v={key.lower().replace(' ', '')}",
@@ -260,7 +262,9 @@ def seed(db):
                     "storage_capacity": var.get("storage", ""), "ram": var.get("ram", ""),
                     "variant_colour": var.get("colour", ""), "variant_size": var.get("size", ""),
                     "region": var.get("region", ""),
-                    "price": str(price), "shipping_cost": rnd.choice(["0", "0", "199", "250", "350", ""]),
+                    "price": str(price), "original_price": str(orig_price) if orig_price else "",
+                    "promo_code": promo,
+                    "shipping_cost": rnd.choice(["0", "0", "199", "250", "350", ""]),
                     "stock_status": "out_of_stock" if rnd.random() < 0.07 else "in_stock",
                     "warranty_type": warranty,
                     "condition": "refurbished" if cat in ("mobile-phones", "laptops") and rnd.random() < 0.06 else "new",

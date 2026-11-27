@@ -9,12 +9,27 @@ def _int(name, default):
         return default
 
 
+def _default_db_url() -> str:
+    env_url = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
+    if env_url:
+        if env_url.startswith("postgres://"):
+            return env_url.replace("postgres://", "postgresql+psycopg://", 1)
+        if env_url.startswith("postgresql://"):
+            return env_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return env_url
+    if os.environ.get("VERCEL"):
+        return "sqlite:////tmp/saleradar.db"
+    return "sqlite:///./saleradar.db"
+
+
 class Settings:
     SITE_NAME = os.environ.get("SITE_NAME", "Sale Radar")
     BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000").rstrip("/")
-    DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./saleradar.db")
+    DATABASE_URL = _default_db_url()
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-change-me")
     DEFAULT_CURRENCY = "PKR"
+    AUTO_SEED_DEMO = os.environ.get("AUTO_SEED_DEMO", "1" if os.environ.get("VERCEL") else "0") == "1"
+    API_KEY = os.environ.get("API_KEY", "")
 
     # Freshness rules (hours). An offer older than STALE is labelled stale;
     # older than HIDE it is not shown as a live price at all.

@@ -28,6 +28,7 @@ UR = {
     "About": "ہمارے بارے میں", "Contact": "رابطہ", "Privacy": "پرائیویسی", "Terms": "شرائط",
     "Affiliate disclosure": "ایفیلیئٹ انکشاف", "Sponsored": "اسپانسرڈ", "Stale price": "پرانی قیمت",
     "Price history": "قیمت کی تاریخ", "Offers": "آفرز", "Notify me": "مجھے بتائیں",
+    "Live Deals": "لائیو ڈیلز", "Compare": "موازنہ", "Verified price drops": "تصدیق شدہ کم قیمتیں",
     "We are not the seller. Prices and stock can change; always verify at the retailer's checkout.":
         "ہم فروخت کنندہ نہیں ہیں۔ قیمت اور اسٹاک بدل سکتے ہیں؛ ہمیشہ ریٹیلر کے چیک آؤٹ پر تصدیق کریں۔",
 }

@@ -341,12 +341,15 @@ async def offer_save(request: Request, db: Session = Depends(get_db), u=Depends(
         return redirect(f"/admin/offers/{oid}" if oid else f"/admin/offers/new?variant={f.get('variant_id', '')}")
     price = dec(f.get("price"), "price")
     ship = dec(f.get("shipping_cost"), "shipping")
+    orig_price = dec(f.get("original_price"), "original price")
+    promo = (f.get("promo_code") or "").strip()[:80] or None
     changed = (o.id is None or o.price != price or o.shipping_cost != ship
                or o.stock_status != f.get("stock_status"))
     o.retailer = r
     o.retailer_sku = (f.get("retailer_sku") or "").strip() or url
     o.retailer_title = (f.get("retailer_title") or "").strip() or o.retailer_sku
     o.product_url, o.price, o.shipping_cost = url, price, ship
+    o.original_price, o.promo_code = orig_price, promo
     o.currency = (f.get("currency") or "PKR").upper()
     o.stock_status = f.get("stock_status") or "in_stock"
     o.condition = f.get("condition") or "new"

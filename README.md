@@ -1,112 +1,103 @@
-# Sale Radar
+# SaleRadar v2.0 — Pakistan's Verified Price Comparison, Deal Truth Radar & MCP Platform
 
-A Pakistan-first **price comparison platform** for phones, laptops, TVs, appliances, clothing, shoes and beauty, built to the *Price Comparison Shopping Platform: Business & Product Blueprint*.
+[![Tests](https://img.shields.io/badge/pytest-26%20passed-brightgreen)](#testing--verification)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](#stack--architecture)
+[![FastAPI](https://img.shields.io/badge/FastAPI-REST%20%2B%20MCP%202.0-009688)](#rest-api-v1--mcp-server)
+[![Vercel Ready](https://img.shields.io/badge/Vercel-Serverless%20Ready-black)](#deploy-on-vercel-or-docker)
 
-Shoppers search for an exact model and compare offers from verified local stores: item price, delivered price, warranty, stock, condition and when each price was last checked. Retailers keep their own checkout. We send them traffic.
+**SaleRadar** is a production-ready, Pakistan-first **price comparison platform, fake-markdown detector, merchant SaaS portal, and AI agent MCP server** covering **mobile phones, laptops, tablets, smartwatches, earbuds, power banks, TVs, air conditioners, men's & women's fashion, unstitched fabric, shoes, and beauty**.
 
-It costs nothing to run beyond your server: no paid APIs, and everything is open source.
+Shoppers search for an exact model (in English or **Roman Urdu** like `fon`, `mobail`, `ghari`), compare offers from verified Pakistani stores ranked by **lowest delivered price**, inspect **90-day SVG price history charts**, and spot artificial **"Was" price inflation (Fake Markdowns)** via our **0–100 Deal Truth Score**.
 
-## What's included
+---
 
-**Shopper website (SEO-friendly, mobile-first, English / Urdu)**
-- Search by brand, model or model number. It understands synonyms and Roman Urdu (*mobile / phone / fon*) and tolerates typos.
-- Category pages with filters (brand, store, price range, storage, RAM, in stock) and sorting.
-- Product pages: variant picker (storage / RAM / colour / PTA), and an offer table ranked by **lowest delivered price**, with unknown shipping clearly labelled.
-- Price history chart and an honest deal label ("Lowest in 30 days", "Above the usual price") based on observed prices, not crossed-out "was" prices.
-- "Last checked" on every offer. Stale prices are labelled, and very old prices are hidden.
-- Price-drop email alerts with double opt-in and unsubscribe.
-- "Report incorrect price" on every offer.
-- Store profiles with a verification badge, contact details, delivery regions, and return / warranty links.
-- Sponsored placements in a separate, labelled box that never changes the price ranking.
-- About, how-prices-are-checked, privacy, terms, affiliate disclosure, merchant agreement, and contact / correction / takedown pages.
-- Sitemap, robots.txt, canonical URLs and Product structured data (JSON-LD).
+## 🚀 What's New in v2.0 (Market-Driven Production Upgrades)
 
-**Admin panel** (`/admin`, with two-step verification required for staff)
-- Dashboard with the blueprint's pilot metrics: searches per visitor, search-to-product rate, outbound CTR, offer coverage, freshness, stale offers, alerts and EPC. Also top searches and searches with no results.
-- Products and variants, retailers (verification evidence, permission records, feed settings, affiliate parameters, plan), and offers (manual entry, "mark checked").
-- CSV import with per-row validation, rejected rows with reasons (downloadable), and a template. Re-importing the same file is safe.
-- Match review queue: confidence-ranked suggestions, link / create / ignore.
-- Price reports, contact messages, store applications, sponsored campaigns, affiliate conversions, users, email outbox and audit log.
+1. **Fake Markdown Detector & Deal Truth Score (`0–100`):**
+   - Stores in Pakistan frequently inflate crossed-out `"Was"` prices during *Blessed Friday, 11.11, and Eid Sales*.
+   - SaleRadar tracks `original_price` ("Was" price) alongside `price` and audits every offer against the **30-day observed median price**. Artificial markups are automatically flagged with an **`Inflated 'Was' Price`** warning badge, while genuine discounts receive a **`Verified X% below 30d median`** badge.
+2. **Live Verified Deals Radar (`/deals`):**
+   - Dedicated deal-hunting feed showcasing in-stock products currently trading strictly below their 30-day observed median price, filterable by category.
+3. **Promo & Voucher Code Badges (`promo_code`):**
+   - Displays active store coupon codes (e.g., `🏷 Code: BLESSED10`, `EIDSALE`, `RADAR5`) directly in the product offer table and CSV feeds.
+4. **Side-by-Side Spec & Deal Comparison Matrix (`/compare`):**
+   - Compare up to 4 products side-by-side across technical/fashion specs, lowest live price, lowest delivered price, 30-day Deal Truth Score, and verified store counts.
+5. **Public REST API v1 (`/api/v1/*`) & Interactive OpenAPI Docs (`/api/docs`):**
+   - Programmatic JSON endpoints for product search, variant offer tables, deal audits, live price drops, and price alert subscriptions.
+6. **Model Context Protocol (MCP) JSON-RPC 2.0 Server (`/api/mcp`):**
+   - Native AI agent tools (`search_products`, `get_product_offers_and_truth_score`, `get_verified_price_drops`) enabling Claude, Cursor, Antigravity, and OpenAI agents to query live Pakistani prices and deal truth scores.
+7. **Dual Deployment (Vercel Serverless + Docker Compose):**
+   - Includes `vercel.json` + `api/index.py` with automatic demo seeding (`AUTO_SEED_DEMO=1`) and `postgres://` connection normalization alongside the full Docker Compose + Caddy HTTPS stack.
 
-**Merchant portal** (`/merchant`: the SaaS side)
-- Self-signup ("List your store") with acceptance of the data agreement. Admin verifies the store before it goes live.
-- Upload CSV or Google Sheet, feed health, rejected rows, stale offers, and clicks sent.
-- **Pro plan:** scheduled feed URL imports, daily click analytics, and **competitor price monitoring**.
+---
 
-**How data gets in (zero paid APIs, with permission)**
-- CSV / Excel / Google Sheets uploads (admin or merchant).
-- A scheduled CSV feed URL, such as a published Google Sheet.
-- Manual entry in the admin panel.
-- A Shopify product feed, only when the retailer's written permission is recorded.
+## 📚 Complete Documentation Suite (`docs/`)
 
-**Product matching** follows the blueprint's confidence hierarchy: GTIN → this retailer's earlier SKU match → brand + model number + exact variant → fuzzy suggestions that **always go to human review**. Different storage, RAM, colour, region or condition are never merged.
+All product, design, architectural, database, API, security, testing, and UML documents are available in the [`docs/`](./docs/) folder:
 
-**Engineering:** PostgreSQL (`pg_trgm` search), DECIMAL prices with explicit currency, full price history, import-run records, allow-listed outbound redirects, bot-click filtering, CSRF protection, bcrypt passwords, TOTP MFA, login throttling, audit log, security headers, nightly backups and automatic HTTPS.
+| Document | Description |
+| :--- | :--- |
+| [**`docs/PRD.md`**](./docs/PRD.md) | Product Requirements Document, Pakistani market research (PriceOye, Daraz, Flashi, SaleSiren), personas & KPIs |
+| [**`docs/DESIGN.md`**](./docs/DESIGN.md) | UI/UX design system, light/dark color tokens, bilingual English/Urdu (`RTL`) layout, and server-side SVG chart design |
+| [**`docs/ARCHITECTURE.md`**](./docs/ARCHITECTURE.md) | Modular monolith & dual-deployment architecture (Vercel Serverless + Docker Compose) and ADRs |
+| [**`docs/DATABASE.md`**](./docs/DATABASE.md) | Complete 16-table PostgreSQL / SQLite schema, ERD diagram, `Numeric(12,2)` precision & zero-downtime migrations |
+| [**`docs/APIS.md`**](./docs/APIS.md) | REST API v1 reference (`/api/v1/products`, `/api/v1/deals`, `/api/v1/stores`, `/api/v1/alerts`) & web routes |
+| [**`docs/AGENTS.md`**](./docs/AGENTS.md) | Internal automation agents (Feed Sync, 4-Tier Product Matcher, Fake Markdown Auditor, Alert Notifier) |
+| [**`docs/MCP.md`**](./docs/MCP.md) | Model Context Protocol (MCP) JSON-RPC 2.0 Server guide (`/api/mcp`) and tool schemas |
+| [**`docs/AUTH.md`**](./docs/AUTH.md) | RBAC matrix (`admin`, `editor`, `merchant`), mandatory TOTP 2FA, Bcrypt, CSRF HMAC, and login throttling |
+| [**`docs/PLAN.md`**](./docs/PLAN.md) | Code review summary, v2.0 architectural improvements, and 90-day pilot launch roadmap |
+| [**`docs/SETUP.md`**](./docs/SETUP.md) | Local development, environment variables, Vercel serverless setup, and Linux Docker Compose guide |
+| [**`docs/FEATURES.md`**](./docs/FEATURES.md) | Complete B2C shopper, B2B Merchant Pro SaaS, Admin operations, and Developer/MCP feature catalog |
+| [**`docs/INTEGRATIONS.md`**](./docs/INTEGRATIONS.md) | CSV/Excel feeds, published Google Sheets sync, permissioned Shopify `/products.json`, SMTP outbox & affiliate links |
+| [**`docs/TESTING_AND_DEBUGGING.md`**](./docs/TESTING_AND_DEBUGGING.md) | Pytest suite breakdown (`26` tests), feed troubleshooting, visibility gate diagnostics, and MFA/SMTP debugging |
+| [**`docs/UML_DIAGRAMS.md`**](./docs/UML_DIAGRAMS.md) | UML Class Diagram, Feed Ingestion Sequence, Deal Truth Audit Sequence, and Offer Lifecycle State Machine |
 
-## Categories and filters
+---
 
-13 standard categories in 4 groups, each with its own filters (edit them in **Admin → Categories**):
-
-| Group | Categories | Example filters |
-|---|---|---|
-| Electronics | Mobile Phones, Laptops, Tablets, Smartwatches, Earbuds & Headphones, Power Banks & Chargers, TVs | storage, RAM, PTA, 5G, screen size, refresh rate, processor, GPU, noise cancelling, resolution |
-| Home Appliances | Air Conditioners | tonnage, inverter, energy rating |
-| Fashion | Men's Clothing, Women's Clothing, Unstitched Fabric, Shoes | size (S–XXL, waist, UK shoe sizes), colour, fit, fabric, pieces, season, shoe type |
-| Beauty | Beauty & Personal Care | type, skin type, volume |
-
-Filters are multi-select (e.g. size M **or** L), combine across groups, and show counts. Sizes sort naturally (XS < S < M…, UK 6 < UK 10). New, used and refurbished offers are never ranked together.
-
-Specs come from CSV columns named `spec_<key>` (e.g. `spec_processor`, `spec_fabric`, `spec_gender`); sizes and colours from `variant_size` / `variant_colour`.
-
-**Real stores to approach:** `python -m app.cli seed-prospects` adds 22 Pakistani stores (fashion, shoes, electronics, beauty) as admin-only *prospects*. They are never shown or imported until you set them to active after they agree. 10 of them were confirmed to have a reachable Shopify product feed.
-
-## Stack
-
-Python 3.12 · FastAPI · SQLAlchemy · PostgreSQL 16 · Jinja templates (server-rendered for SEO, no JavaScript build) · Docker Compose · Caddy (free HTTPS).
-
-The blueprint lists Next.js + FastAPI as options. A single FastAPI app with server-rendered pages is simpler to run on one server and is just as indexable by Google.
-
-## Try it locally
+## ⚡ Quick Start (Local Development)
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/python -m app.cli seed-demo              # fictional demo stores and prices
-.venv/bin/python -m app.cli create-admin you@example.com
+.venv/bin/python -m app.cli seed-demo              # Loads 14 demo stores, 50+ products, 900+ offers & 45d history
+.venv/bin/python -m app.cli seed-prospects         # Adds 22 real Pakistani prospect stores (admin-only)
+.venv/bin/python -m app.cli create-admin you@saleradar.pk
 .venv/bin/uvicorn app.main:app --reload             # http://localhost:8000
 ```
 
-Without `DATABASE_URL` it uses a local SQLite file. Log in at `/login`, and you'll set up two-step verification with an authenticator app.
-
-Run the tests:
-
+Run the automated test suite (`26` passing tests):
 ```bash
-.venv/bin/pytest -q
+.venv/bin/python -m pytest -q
 ```
 
-## Deploy on your server
+---
 
-1. Point your domain's DNS (an A record) at the server, and install Docker.
-2. `cp .env.example .env`, then set `DOMAIN`, `BASE_URL`, `SECRET_KEY`, `POSTGRES_PASSWORD` (also inside `DATABASE_URL`) and, optionally, SMTP for alert emails.
-3. Start everything:
-   ```bash
-   docker compose up -d --build
-   docker compose exec web python -m app.cli create-admin you@yourdomain.pk
-   ```
-4. Open `https://yourdomain/login`.
+## 🌐 Key Application URLs
 
-Services: `web` (site), `worker` (feeds every 6 h, alerts hourly), `db`, `caddy` (HTTPS) and `backup` (nightly dumps in `./backups`, kept 14 days; copy them off the server).
+- **`/`** — Shopper Homepage (Search, Live Verified Price Drops, 13 Categories in 4 Groups, Verified Stores)
+- **`/deals`** — Live Verified Deals Radar (Filtered by 30-day observed median price drops)
+- **`/compare`** — Side-by-Side Product & Spec Comparison Matrix (up to 4 products)
+- **`/c/{slug}`** — Category Faceted Search (Multi-select storage, RAM, PTA, clothing/shoe sizes, specs)
+- **`/p/{slug}`** — Product Page (Variant picker, condition isolation, delivered-price ranking, Fake Markdown Audit, 90-day SVG price history, double opt-in price alert)
+- **`/merchants` & `/merchant`** — Retailer Self-Signup & Merchant SaaS Portal (CSV upload, Pro feed sync, competitor price monitoring)
+- **`/admin`** — Staff Operations Dashboard (Requires TOTP 2FA; Pilot KPIs, Match Review Queue, Catalog, Retailers, Audit Log)
+- **`/api/docs` & `/api/v1/*`** — OpenAPI Swagger UI & REST API v1
+- **`/api/mcp`** — Model Context Protocol (MCP) JSON-RPC 2.0 Server for AI Agents
 
-**Before launch:** don't load the demo data on production. Have the privacy, terms and merchant agreement pages reviewed by a Pakistani legal professional, and set up email (SMTP).
+---
 
-## CSV columns
+## ☁️ Deploy on Vercel or Docker
 
-`retailer_name, retailer_domain, product_url, retailer_sku, product_title, brand, model_number, gtin, category, variant_colour, variant_size, storage_capacity, ram, region, condition, price, currency, shipping_cost, stock_status, warranty_type, image_url, checked_at, permission_reference`
+### Option A: Vercel Serverless
+SaleRadar includes `vercel.json` and `api/index.py`. Deploy directly with:
+```bash
+vercel deploy --prod --yes
+```
+When `AUTO_SEED_DEMO=1` (default on Vercel), an ephemeral `/tmp/saleradar.db` is automatically initialized and seeded with demo stores and 45-day price history if no external `DATABASE_URL` / `POSTGRES_URL` is configured. For persistent production storage, attach a Neon or Supabase PostgreSQL database via `DATABASE_URL`.
 
-Required: `product_url, product_title, brand, price`. Leave `shipping_cost` blank for unknown, or use `0` for free. You can download a filled-in template from the admin or merchant import page.
-
-## Recommended launch plan (from the blueprint)
-
-1. Interview 10–20 shoppers and 10 retailers. Get 3–5 stores to agree to share a CSV or Google Sheet.
-2. Load 100–500 phone products with 2–5 offers each, then run a closed pilot.
-3. Watch the dashboard. Success gates: 100+ well-matched products, 3+ active stores, 90%+ price accuracy, a measurable outbound click rate.
-4. Then add affiliate programmes, sponsored campaigns, Merchant Pro subscriptions and new categories.
+### Option B: Self-Hosted Linux VPS (Docker Compose + Caddy HTTPS)
+```bash
+cp .env.example .env
+# Set DOMAIN, BASE_URL, SECRET_KEY, POSTGRES_PASSWORD, DATABASE_URL in .env
+docker compose up -d --build
+docker compose exec web python -m app.cli create-admin admin@saleradar.pk
+```

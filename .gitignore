@@ -3,3 +3,6 @@ __pycache__/
 *.db
 .env
 .pytest_cache/
+.vercel/
+backups/
+

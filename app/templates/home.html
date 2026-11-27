@@ -5,6 +5,30 @@
   <p>Phones, laptops, TVs, clothing, shoes and more. Delivered price, sizes, warranty, stock and the time each price was last checked, side by side.</p>
   <form action="/search"><input name="q" placeholder="{{ _('Search phones, laptops, clothes, shoes…') }}" aria-label="Search" autofocus><button>{{ _("Search") }}</button></form>
 </section>
+{% if deals %}
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:24px">
+  <h2 style="margin:0">🔥 {{ _("Verified price drops") }} <span class="small mute">(vs 30-day observed median)</span></h2>
+  <a class="small" href="/deals">All live deals →</a>
+</div>
+<div class="grid" style="margin-top:12px">
+  {% for d in deals %}{% set c = d.card %}
+  <a class="pcard" href="/p/{{ c.product.slug }}?v={{ d.variant.id }}">
+    <div class="img">{% if c.product.image_url %}<img loading="lazy" src="{{ c.product.image_url }}" alt="{{ c.product.title }}">{% else %}<img loading="lazy" src="/static/placeholder.svg" alt="">{% endif %}</div>
+    <div class="body">
+      <div style="display:flex;justify-content:space-between;gap:4px;flex-wrap:wrap">
+        <span class="badge good">{% if d.drop_pct >= 1 %}↓ {{ d.drop_pct }}% below median{% else %}{{ d.deal.label }}{% endif %}</span>
+        <span class="badge blue">Score {{ d.deal.score }}/100</span>
+      </div>
+      <span class="small mute">{{ c.product.brand }} · {{ d.variant.label }}</span>
+      <span class="title">{{ c.product.title }}</span>
+      <span class="price">{{ c.lowest|pkr }}</span>
+      {% if d.savings > 0 %}<span class="small" style="color:var(--good)">Save {{ d.savings|pkr }} vs 30d typical ({{ d.deal.median|pkr }})</span>{% endif %}
+      <span class="small mute">{{ c.stores }} {{ _("stores") }}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
 {% if groups %}<h2>{{ _("Categories") }}</h2>
 <div class="cols">{% for g, cs in groups %}<div class="card cat-group" style="margin-top:0"><h3>{{ g }}</h3>
 <div class="chips">{% for c in cs %}<a class="chip" href="/c/{{ c.slug }}">{{ c.name }}</a>{% endfor %}</div></div>{% endfor %}</div>{% endif %}

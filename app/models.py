@@ -130,6 +130,8 @@ class Offer(Base):
     retailer_title: Mapped[str] = mapped_column(String(400))  # original, kept for audit
     product_url: Mapped[str] = mapped_column(String(1000))
     price: Mapped[Decimal] = mapped_column(Money)
+    original_price: Mapped[Decimal | None] = mapped_column(Money)  # store's claimed 'was' price
+    promo_code: Mapped[str | None] = mapped_column(String(80))  # active coupon/voucher code
     currency: Mapped[str] = mapped_column(String(3), default="PKR")
     shipping_cost: Mapped[Decimal | None] = mapped_column(Money)  # None = unknown
     stock_status: Mapped[str] = mapped_column(String(20), default="in_stock")
@@ -154,6 +156,12 @@ class Offer(Base):
     @property
     def delivered_price(self):
         return None if self.shipping_cost is None else self.price + self.shipping_cost
+
+    @property
+    def claimed_discount_pct(self) -> int | None:
+        if self.original_price and self.original_price > self.price and self.original_price > 0:
+            return int(round((self.original_price - self.price) / self.original_price * 100))
+        return None
 
 
 class PriceHistory(Base):

@@ -24,8 +24,11 @@
     <div class="card" style="display:flex;flex-wrap:wrap;gap:18px;align-items:center">
       <div><span class="small mute">{{ _("Lowest price") }}</span><div class="price" style="font-size:26px">{{ current_low|pkr }}</div>
         <span class="small">{{ offers|length }} {{ _("stores") }}</span></div>
-      {% if deal %}<div><span class="badge {{ deal.tone }}">{{ deal.label }}</span><div class="small mute">30-day typical price {{ deal.median|pkr }}</div></div>{% endif %}
-      <a class="btn" href="#alert">🔔 {{ _("Price alert") }}</a>
+      {% if deal %}<div><span class="badge {{ deal.tone }}">{{ deal.label }} (Truth Score: {{ deal.score }}/100)</span><div class="small mute">30-day typical price {{ deal.median|pkr }} · 30d low {{ deal.low|pkr }}</div></div>{% endif %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">
+        <a class="btn small" href="/compare?ids={{ p.id }}">⚖ Compare specs</a>
+        <a class="btn small" href="#alert">🔔 {{ _("Price alert") }}</a>
+      </div>
     </div>
 
     <h2>{{ _("Offers") }} <span class="small mute">for {{ variant.label if variant else '' }}</span></h2>
@@ -37,12 +40,16 @@
     {% if offers %}
     <div class="tablewrap"><table class="offers">
       <thead><tr><th>{{ _("Store") }}</th><th>{{ _("Price") }}</th><th>{{ _("Shipping") }}</th><th>{{ _("Warranty") }} / condition</th><th>{{ _("Stock") }}</th><th></th></tr></thead>
-      <tbody>{% for o in offers %}{% set fr = freshness(o, p.category.slug if p.category else None) %}
+      <tbody>{% for o in offers %}{% set fr = freshness(o, p.category.slug if p.category else None) %}{% set aud = audits.get(o.id) if audits else None %}
       <tr class="{{ 'offer-best' if loop.first and o.stock_status != 'out_of_stock' }}">
         <td><a href="/store/{{ o.retailer.slug }}"><b>{{ o.retailer.name }}</b></a>
           {% if o.retailer.verified %}<span class="badge blue" title="Business identity and contact details verified">✔ Verified</span>{% endif %}
-          <div class="small mute">{{ o.retailer_title }}</div></td>
-        <td><b>{{ o.price|pkr }}</b>{% if o.delivered_price is not none and o.shipping_cost > 0 %}<div class="small mute">{{ o.delivered_price|pkr }} delivered</div>{% endif %}</td>
+          <div class="small mute">{{ o.retailer_title }}</div>
+          {% if o.promo_code %}<div style="margin-top:4px"><span class="badge spon" title="Apply this voucher code at store checkout">🏷 Code: {{ o.promo_code }}</span></div>{% endif %}</td>
+        <td><b>{{ o.price|pkr }}</b>
+          {% if o.original_price and o.original_price > o.price %}<div class="small mute">Store 'was': <s>{{ o.original_price|pkr }}</s> (-{{ o.claimed_discount_pct }}%)</div>{% endif %}
+          {% if aud and aud.badge %}<div style="margin-top:3px"><span class="badge {{ aud.tone }}">{{ aud.badge }}</span></div>{% endif %}
+          {% if o.delivered_price is not none and o.shipping_cost > 0 %}<div class="small mute">{{ o.delivered_price|pkr }} delivered</div>{% endif %}</td>
         <td>{% if o.shipping_cost is none %}<span class="mute">{{ _("Unknown") }}</span>{% elif o.shipping_cost == 0 %}{{ _("Free") }}{% else %}{{ o.shipping_cost|pkr }}{% endif %}</td>
         <td class="small">{{ o.warranty_type or '—' }}<br><span class="mute">{{ o.condition|replace('_',' ')|capitalize }}</span></td>
         <td class="small">{% if o.stock_status == 'out_of_stock' %}<span class="badge bad">{{ _("Out of stock") }}</span>{% elif o.stock_status == 'preorder' %}<span class="badge warn">Pre-order</span>{% else %}<span class="badge good">{{ _("In stock") }}</span>{% endif %}

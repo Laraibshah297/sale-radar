@@ -17,8 +17,8 @@ from .text import search_text_for
 
 CSV_COLUMNS = ["retailer_name", "retailer_domain", "product_url", "retailer_sku", "product_title",
                "brand", "model_number", "gtin", "category", "variant_colour", "variant_size",
-               "storage_capacity", "ram", "region", "condition", "price", "currency",
-               "shipping_cost", "stock_status", "warranty_type", "image_url", "checked_at",
+               "storage_capacity", "ram", "region", "condition", "price", "original_price", "promo_code",
+               "currency", "shipping_cost", "stock_status", "warranty_type", "image_url", "checked_at",
                "permission_reference"]
 # plus any number of spec_<key> columns, e.g. spec_processor, spec_screen_size,
 # spec_fabric, spec_gender (see app/filters.py for the keys each category filters on)
@@ -91,6 +91,11 @@ def validate(row: dict, retailer: Retailer | None) -> tuple[dict, list[str]]:
         out["shipping_cost"] = parse_money(row.get("shipping_cost"))
     except ValueError as e:
         errs.append(f"shipping_cost {e}")
+    try:
+        out["original_price"] = parse_money(row.get("original_price"))
+    except ValueError as e:
+        errs.append(f"original_price {e}")
+    out["promo_code"] = (row.get("promo_code") or "").strip()[:80] or None
     cur = (row.get("currency") or "PKR").upper()
     if cur not in CURRENCIES:
         errs.append(f"unsupported currency {cur}")
@@ -158,6 +163,8 @@ def upsert_offer(db: Session, retailer: Retailer, row: dict, run: ImportRun | No
     offer.retailer_title = row["product_title"]
     offer.product_url = row["product_url"]
     offer.price = row["price"]
+    offer.original_price = row.get("original_price")
+    offer.promo_code = row.get("promo_code")
     offer.currency = row["currency"]
     offer.shipping_cost = row["shipping_cost"]
     offer.stock_status = row["stock_status"]
@@ -267,7 +274,7 @@ def template_csv() -> str:
     w.writerow(CSV_COLUMNS)
     w.writerow(["Example Store", "example.pk", "https://example.pk/products/galaxy-a55-256", "A55-256-BLK",
                 "Samsung Galaxy A55 5G 256GB Awesome Navy", "Samsung", "SM-A556E", "", "Mobile Phones",
-                "Awesome Navy", "", "256GB", "8GB", "PTA Approved", "new", "124999", "PKR", "0",
+                "Awesome Navy", "", "256GB", "8GB", "PTA Approved", "new", "124999", "134999", "EID10", "PKR", "0",
                 "in_stock", "1 Year Official Warranty", "https://example.pk/img/a55.jpg",
                 "2026-11-04 10:00", "Email from owner 2026-11-01"])
     return buf.getvalue()
@@ -287,8 +294,9 @@ def export_offers_csv(db: Session, retailer_id: int | None = None) -> str:
                      p.brand if p else o.raw.get("brand"), p.model_number if p else o.raw.get("model_number"),
                      v.gtin if v else "", p.category.name if p and p.category else "",
                      v.colour if v else "", v.size if v else "", v.storage if v else "", v.ram if v else "",
-                     v.region if v else "", o.condition, o.price, o.currency,
-                     "" if o.shipping_cost is None else o.shipping_cost, o.stock_status,
+                     v.region if v else "", o.condition, o.price,
+                     "" if o.original_price is None else o.original_price, o.promo_code or "",
+                     o.currency, "" if o.shipping_cost is None else o.shipping_cost, o.stock_status,
                      o.warranty_type or "", o.image_url or "", o.checked_at.isoformat(),
                      o.permission_reference or "", o.match_status, p.slug if p else ""])
     return buf.getvalue()

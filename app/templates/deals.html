@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Live Deals & Verified Price Drops in Pakistan | {{ settings.SITE_NAME }}{% endblock %}
+{% block description %}Discover real, history-verified price drops across Pakistani online stores. No inflated 'Was' prices — every deal is measured against 30-day observed price history.{% endblock %}
+{% block content %}
+<h1>🔥 {{ _("Verified price drops") }}</h1>
+<p class="mute">Unlike fake "Up to 50% OFF" banners, every deal below is verified against our 30-day observed price history across Pakistani retailers.</p>
+
+<div class="chips" style="margin-bottom:16px">
+  <a class="chip {{ 'on' if not current_cat }}" href="/deals">All categories</a>
+  {% for c in categories %}<a class="chip {{ 'on' if current_cat == c.slug }}" href="/deals?cat={{ c.slug }}">{{ c.name }}</a>{% endfor %}
+</div>
+
+{% if deals %}
+<div class="grid">
+  {% for d in deals %}{% set c = d.card %}
+  <a class="pcard" href="/p/{{ c.product.slug }}?v={{ d.variant.id }}">
+    <div class="img">{% if c.product.image_url %}<img loading="lazy" src="{{ c.product.image_url }}" alt="{{ c.product.title }}">{% else %}<img loading="lazy" src="/static/placeholder.svg" alt="">{% endif %}</div>
+    <div class="body">
+      <div style="display:flex;justify-content:space-between;gap:4px;flex-wrap:wrap">
+        <span class="badge good">{% if d.drop_pct >= 1 %}↓ {{ d.drop_pct }}% vs 30d median{% else %}{{ d.deal.label }}{% endif %}</span>
+        <span class="badge blue">Score {{ d.deal.score }}/100</span>
+      </div>
+      <span class="small mute">{{ c.product.brand }} · {{ d.variant.label }}</span>
+      <span class="title">{{ c.product.title }}</span>
+      <span class="price">{{ c.lowest|pkr }}</span>
+      <span class="small mute">30d median: <s>{{ d.deal.median|pkr }}</s></span>
+      {% if d.savings > 0 %}<span class="small" style="color:var(--good);font-weight:600">Save {{ d.savings|pkr }}</span>{% endif %}
+      <span class="small mute">{{ c.stores }} {{ _("stores") }} · {{ _("Last checked") }} {{ c.updated|ago if c.updated else 'now' }}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <h3>No price drops in this category right now</h3>
+  <p class="mute">Check back soon or browse <a href="/deals">all categories</a>.</p>
+</div>
+{% endif %}
+{% endblock %}

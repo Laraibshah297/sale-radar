@@ -53,7 +53,11 @@ def get_db():
 
 # Columns added after the first release. create_all() doesn't alter existing
 # tables, so add them here (safe to run every start).
-_NEW_COLUMNS = [("categories", "group", "VARCHAR(60) DEFAULT 'Other'")]
+_NEW_COLUMNS = [
+    ("categories", "group", "VARCHAR(60) DEFAULT 'Other'"),
+    ("offers", "original_price", "NUMERIC(12, 2)"),
+    ("offers", "promo_code", "VARCHAR(80)"),
+]
 
 
 def _add_missing_columns(eng):
