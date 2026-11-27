@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Buy Now Pay Later (BNPL) & 0% Installment Planner Pakistan | {{ settings.SITE_NAME }}{% endblock %}
+{% block description %}Find smartphones, laptops, ACs, and fashion you can buy on monthly installments in Pakistan via BaadMay (Debit Card 3x), KalPay Halal, QistBazaar CNIC, or Bank 0% EMI.{% endblock %}
+{% block content %}
+<h1>📅 Pakistan BNPL & Easy Installment Affordability Planner</h1>
+<p class="mute">Over 70% of Pakistani shoppers don't use credit cards. Filter products you can afford today using <b>Debit Card 3x Split (BaadMay / KalPay Halal)</b>, <b>CNIC-Only Installments (QistBazaar)</b>, or <b>0% Bank Credit Card EMI</b>.</p>
+
+<form class="card form" method="get" action="/installments" style="max-width:none;margin-bottom:20px">
+  <div class="cols">
+    <label>Max Monthly Installment Budget (PKR)
+      <input name="monthly" value="{{ monthly }}" inputmode="numeric" placeholder="e.g. 15000">
+    </label>
+    <label>Category
+      <select name="cat">
+        <option value="">All Categories</option>
+        {% for c in categories %}<option value="{{ c.slug }}" {{ 'selected' if cat == c.slug }}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Financing Type
+      <select name="provider">
+        <option value="" {{ 'selected' if not provider }}>All (Debit BNPL + CNIC + Bank EMI)</option>
+        <option value="baadmay" {{ 'selected' if provider=='baadmay' }}>BaadMay (Debit Card 3x — No Credit Card)</option>
+        <option value="kalpay" {{ 'selected' if provider=='kalpay' }}>KalPay (Shariah-Compliant Halal 3x)</option>
+        <option value="qistbazaar" {{ 'selected' if provider=='qistbazaar' }}>QistBazaar (CNIC Only — 12 Months)</option>
+        <option value="alfa" {{ 'selected' if provider=='alfa' }}>Bank 0% Markup Credit Card EMI (6 Months)</option>
+      </select>
+    </label>
+  </div>
+  <div><button class="primary">Show Affordable Products (≤ Rs {{ "{:,}".format(monthly) }}/month)</button></div>
+</form>
+
+{% if items %}
+<div class="grid">
+  {% for it in items %}{% set c = it.card %}{% set bp = it.best_plan %}
+  <a class="pcard" href="/p/{{ c.product.slug }}">
+    <div class="img">{% if c.product.image_url %}<img loading="lazy" src="{{ c.product.image_url }}" alt="{{ c.product.title }}" onerror="this.onerror=null;this.src='/static/placeholder.svg'">{% else %}<img loading="lazy" src="/static/placeholder.svg" alt="">{% endif %}</div>
+    <div class="body">
+      <div style="display:flex;justify-content:space-between;gap:4px;flex-wrap:wrap">
+        <span class="badge good">{{ bp.monthly|pkr }}/mo × {{ bp.months }}</span>
+        <span class="badge blue">{{ bp.provider }}</span>
+      </div>
+      <span class="small mute">{{ c.product.brand }}{% if c.key_spec %} · {{ c.key_spec }}{% endif %}</span>
+      <span class="title">{{ c.product.title }}</span>
+      <span class="small mute">Cash price: <b>{{ c.lowest|pkr }}</b> ({{ c.stores }} stores)</span>
+      <span class="small mute">{{ bp.badge }}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card"><h3>No products under Rs {{ "{:,}".format(monthly) }}/month in this category</h3><p class="mute">Try increasing your monthly budget or selecting All Categories.</p></div>
+{% endif %}
+{% endblock %}

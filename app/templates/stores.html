@@ -2,14 +2,20 @@
 {% block title %}{{ current.name ~ ' stores' if current else 'Stores we compare' }} | {{ settings.SITE_NAME }}{% endblock %}
 {% block content %}
 <h1>{{ current.name ~ ': stores we compare' if current else 'Stores we compare' }}</h1>
-<p class="mute">Verified stores have had their business identity and contact details checked by our team.</p>
+<p class="mute">Verified stores have had their business identity, contact details, COD/Open-Parcel policies, and bank partners checked by our team.</p>
 <div class="chips" style="margin-bottom:14px"><a class="chip {{ 'on' if not current }}" href="/stores">All</a>
 {% for c in cats %}<a class="chip {{ 'on' if current and current.id == c.id }}" href="/stores?c={{ c.slug }}">{{ c.name }}</a>{% endfor %}</div>
-<div class="tablewrap"><table><thead><tr><th>Store</th><th>Sells</th><th>City</th><th>Offers</th><th>Status</th></tr></thead><tbody>
+<div class="tablewrap"><table><thead><tr><th>Store</th><th>Sells</th><th>City</th><th>Trust &amp; Perks</th><th>Offers</th><th>Status</th></tr></thead><tbody>
 {% for r in retailers %}<tr><td><a href="/store/{{ r.slug }}"><b>{{ r.name }}</b></a><div class="small mute">{{ r.domain }}</div></td>
 <td class="small">{% for c in store_cats.get(r.id, []) %}<a href="/c/{{ c.slug }}">{{ c.name }}</a>{{ ', ' if not loop.last }}{% endfor %}</td>
-<td>{{ r.city or '—' }}</td><td>{{ counts.get(r.id, 0) }}</td>
+<td>{{ r.city or '—' }}</td>
+<td class="small">
+  {% if r.trust_score %}<span class="badge good">★ {{ r.trust_score }}/10</span>{% endif %}
+  {% if r.open_parcel %}<span class="badge blue">📦 Open Parcel</span>{% endif %}
+  {% if r.cod_available %}<span class="badge">💵 COD</span>{% endif %}
+</td>
+<td>{{ counts.get(r.id, 0) }}</td>
 <td>{% if r.verified %}<span class="badge blue">✔ Verified</span>{% else %}<span class="badge">Listed</span>{% endif %}</td></tr>
-{% else %}<tr><td colspan=5 class="mute">No stores in this category yet.</td></tr>{% endfor %}
+{% else %}<tr><td colspan=6 class="mute">No stores in this category yet.</td></tr>{% endfor %}
 </tbody></table></div>
 {% endblock %}

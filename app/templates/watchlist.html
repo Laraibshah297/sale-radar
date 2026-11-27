@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}My Saved Watchlist | {{ settings.SITE_NAME }}{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+  <div>
+    <h1 style="margin-bottom:4px">❤️ My Saved Watchlist</h1>
+    <p class="mute" style="margin:0">Bookmark products without creating an account, track lowest verified prices, or share your shopping list on WhatsApp.</p>
+  </div>
+  {% if cards and wa_share %}
+  <a class="btn wa" href="{{ wa_share }}" target="_blank" rel="noopener">📲 Share Watchlist on WhatsApp</a>
+  {% endif %}
+</div>
+
+{% if cards %}
+<div class="grid" style="margin-top:18px">
+  {% for c in cards %}{% include "_card.html" %}{% endfor %}
+</div>
+{% else %}
+<div class="card" style="margin-top:18px">
+  <h3>Your watchlist is empty</h3>
+  <p class="mute">Click <b>🤍 Save to Watchlist</b> on any product page to keep track of items you plan to buy during Blessed Friday, 11.11, or Eid sales.</p>
+  <a class="btn primary small" href="/deals">Browse Live Verified Deals →</a>
+</div>
+{% endif %}
+{% endblock %}

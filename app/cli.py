@@ -26,7 +26,7 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init-db")
     a = sub.add_parser("create-admin"); a.add_argument("email"); a.add_argument("--password")
-    sub.add_parser("seed-demo")
+    sd = sub.add_parser("seed-demo"); sd.add_argument("--force", action="store_true")
     sub.add_parser("seed-prospects")
     i = sub.add_parser("import-csv"); i.add_argument("file"); i.add_argument("--retailer")
     for c in ("run-feeds", "check-alerts", "run-jobs", "scheduler"):
@@ -47,7 +47,7 @@ def main(argv=None):
     elif args.cmd == "seed-demo":
         from .demo import seed
         with SessionLocal() as db:
-            print(seed(db))
+            print(seed(db, force=args.force))
     elif args.cmd == "seed-prospects":
         from .prospects import seed_prospects
         with SessionLocal() as db:

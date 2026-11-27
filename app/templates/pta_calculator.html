@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Official FBR PTA Mobile Tax Calculator (Passport vs CNIC) | {{ settings.SITE_NAME }}{% endblock %}
+{% block description %}Calculate FBR DIRBS PTA approval tax for iPhones, Samsung Galaxy, and Google Pixel phones in Pakistan on Passport vs CNIC, and compare true landed cost against PTA-approved stores.{% endblock %}
+{% block content %}
+<h1>📱 Official FBR DIRBS PTA Tax & Landed Cost Calculator</h1>
+<p class="mute">Buying a Non-PTA or JV phone? Check the exact FBR DIRBS Passport vs CNIC tax slab and see whether paying PTA tax yourself is cheaper than buying an already PTA-Approved unit.</p>
+
+<div class="cols" style="align-items:start">
+  <form class="card form" method="get" action="/pta-calculator">
+    <h3>1. Select Phone or Enter USD Value</h3>
+    <label>Popular Phone Preset
+      <select name="preset" onchange="this.form.usd.value='';this.form.submit()">
+        <option value="">-- Custom USD Value --</option>
+        {% for pr in presets %}
+        <option value="{{ pr.slug }}" {{ 'selected' if selected_preset == pr.slug }}>{{ pr.name }} (~${{ pr.usd }})</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="two">
+      <label>Custom C&amp;F Value (USD)<input name="usd" value="{{ usd if not selected_preset else '' }}" placeholder="e.g. 699" inputmode="decimal"></label>
+      <label>Non-PTA Phone Price (PKR, optional)<input name="device_price" value="{{ device_price }}" placeholder="e.g. 179999" inputmode="numeric"></label>
+    </div>
+    <button class="primary">Calculate FBR PTA Tax</button>
+  </form>
+
+  <div class="card">
+    <h3>2. Estimated FBR PTA Registration Tax</h3>
+    <p class="small mute" style="margin-top:0">
+      {% if result.matched_preset %}<b>{{ result.matched_preset }}</b> · {% endif %}
+      FBR Valuation: <b>${{ result.usd_value }}</b> · {{ result.slab }}
+    </p>
+    <div class="kpis">
+      <div class="kpi" style="border-color:var(--good)">
+        <b style="color:var(--good)">{{ result.passport_tax|pkr }}</b>
+        <span>On Passport (Save {{ result.passport_savings|pkr }})</span>
+      </div>
+      <div class="kpi">
+        <b>{{ result.cnic_tax|pkr }}</b>
+        <span>On Local CNIC</span>
+      </div>
+    </div>
+    {% if dev_pkr %}
+    <div class="verdict-box blue" style="margin-top:14px">
+      <div>💡</div>
+      <div>
+        <b>True PTA-Approved Landed Cost:</b><br>
+        • With Passport: <b>{{ (dev_pkr + result.passport_tax)|pkr }}</b><br>
+        • With CNIC: <b>{{ (dev_pkr + result.cnic_tax)|pkr }}</b>
+      </div>
+    </div>
+    {% endif %}
+    <p class="small mute" style="margin-top:12px">Dial <code>*8484#</code> on your phone to generate a PSID and pay at any bank/ATM within 60 days of first local SIM insertion.</p>
+  </div>
+</div>
+
+<h2>Compare Live Smartphone Prices in Pakistan</h2>
+<div class="grid">{% for c in phones %}{% include "_card.html" %}{% endfor %}</div>
+{% endblock %}

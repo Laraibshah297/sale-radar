@@ -29,6 +29,8 @@ UR = {
     "Affiliate disclosure": "ایفیلیئٹ انکشاف", "Sponsored": "اسپانسرڈ", "Stale price": "پرانی قیمت",
     "Price history": "قیمت کی تاریخ", "Offers": "آفرز", "Notify me": "مجھے بتائیں",
     "Live Deals": "لائیو ڈیلز", "Compare": "موازنہ", "Verified price drops": "تصدیق شدہ کم قیمتیں",
+    "Bank Discounts": "بینک ڈسکاؤنٹ", "Installments": "اقساط", "PTA Tax": "پی ٹی اے ٹیکس",
+    "Smart Advisor": "سمارٹ مشیر", "Saved": "محفوظ",
     "We are not the seller. Prices and stock can change; always verify at the retailer's checkout.":
         "ہم فروخت کنندہ نہیں ہیں۔ قیمت اور اسٹاک بدل سکتے ہیں؛ ہمیشہ ریٹیلر کے چیک آؤٹ پر تصدیق کریں۔",
 }
@@ -51,9 +53,10 @@ templates.env.globals.update(settings=settings, freshness=freshness)
 
 
 def render(request: Request, name: str, ctx: dict | None = None, status_code: int = 200):
+    saved_ids = request.session.get("watchlist") or []
     c = {"request": request, "csrf": csrf_token(request), "user": getattr(request.state, "user", None),
          "_": lambda s: t(request, s), "lang": request.session.get("lang", "en"),
-         "flash": request.session.pop("flash", None)}
+         "flash": request.session.pop("flash", None), "saved_count": len(saved_ids), "saved_ids": saved_ids}
     c.update(ctx or {})
     return templates.TemplateResponse(request, name, c, status_code=status_code)
 

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Bank Card & Mobile Wallet Discounts in Pakistan | {{ settings.SITE_NAME }}{% endblock %}
+{% block description %}Stack HBL, Bank Alfalah, Meezan Bank, SCB, UBL, NayaPay, and JazzCash discounts with store promo codes to unlock the lowest net checkout price in Pakistan.{% endblock %}
+{% block content %}
+<h1>💳 Bank Card & Digital Wallet Discount Optimizer</h1>
+<p class="mute">Don't leave bank discounts on the table! Select your Debit/Credit Card or Mobile Wallet below to see the <b>real net checkout price</b> after stacking promo vouchers + bank partner discounts.</p>
+
+<div class="chips" style="margin-bottom:14px">
+  {% for slug, info in bank_cards.items() %}
+  <a class="chip {{ 'on' if card_slug == slug }}" href="/bank-deals?card={{ slug }}{% if current_cat %}&cat={{ current_cat }}{% endif %}">{{ info.name }} ({{ info.pct }}% Off)</a>
+  {% endfor %}
+</div>
+
+<div class="card" style="margin-bottom:16px;border-left:4px solid var(--brand2)">
+  <b>Active Card Selected: {{ selected_card.name }}</b> <span class="badge blue">{{ selected_card.type }}</span>
+  <div class="small mute" style="margin-top:4px">{{ selected_card.note }} · Max discount cap: {{ selected_card.max_cap|pkr }} · Min spend: {{ selected_card.min_spend|pkr }}</div>
+</div>
+
+<div class="chips" style="margin-bottom:16px">
+  <a class="chip {{ 'on' if not current_cat }}" href="/bank-deals?card={{ card_slug }}">All categories</a>
+  {% for c in categories %}<a class="chip {{ 'on' if current_cat == c.slug }}" href="/bank-deals?card={{ card_slug }}&cat={{ c.slug }}">{{ c.name }}</a>{% endfor %}
+</div>
+
+{% if deals %}
+<div class="grid">
+  {% for d in deals %}{% set c = d.card %}
+  <a class="pcard" href="/p/{{ c.product.slug }}?card={{ card_slug }}">
+    <div class="img">{% if c.product.image_url %}<img loading="lazy" src="{{ c.product.image_url }}" alt="{{ c.product.title }}" onerror="this.onerror=null;this.src='/static/placeholder.svg'">{% else %}<img loading="lazy" src="/static/placeholder.svg" alt="">{% endif %}</div>
+    <div class="body">
+      <div style="display:flex;justify-content:space-between;gap:4px;flex-wrap:wrap">
+        <span class="badge good">Save {{ d.saved|pkr }}</span>
+        <span class="badge blue">{{ d.offer.retailer.name }}</span>
+      </div>
+      <span class="small mute">{{ c.product.brand }}{% if c.key_spec %} · {{ c.key_spec }}{% endif %}</span>
+      <span class="title">{{ c.product.title }}</span>
+      <span class="price" style="color:var(--good)">{{ d.net_price|pkr }}</span>
+      <span class="small mute">Store price: <s>{{ d.offer.price|pkr }}</s></span>
+      {% if d.offer.promo_code %}<span class="small"><span class="badge spon">+ Code {{ d.offer.promo_code }}</span></span>{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card"><h3>No eligible partner offers in this category</h3><p class="mute">Try switching category or selecting another bank card above.</p></div>
+{% endif %}
+{% endblock %}

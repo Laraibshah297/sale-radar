@@ -13,6 +13,15 @@
 <label>Logo URL<input name="logo_url" value="{{ r.logo_url or '' }}"></label>
 <h3>Trust &amp; permission</h3>
 <label style="font-weight:400"><input type="checkbox" name="verified" {{ 'checked' if r.verified }}> Verified store (business identity and contact details checked)</label>
+<div class="two">
+  <label style="font-weight:400"><input type="checkbox" name="cod_available" {{ 'checked' if r.cod_available is none or r.cod_available }}> Cash on Delivery (COD) available</label>
+  <label style="font-weight:400"><input type="checkbox" name="open_parcel" {{ 'checked' if r.open_parcel }}> Open-Parcel Before Payment guarantee</label>
+</div>
+<div class="two">
+  <label>Store Trust Score (0–10)<input name="trust_score" value="{{ r.trust_score if r.trust_score is not none else '9.0' }}" inputmode="decimal"></label>
+  <label>Bank / Wallet Partners (comma-separated slugs)<input name="bank_partners" value="{{ r.bank_partners or '' }}" placeholder="hbl,alfalah,meezan,scb,ubl,nayapay,jazzcash"></label>
+</div>
+<label>BNPL Partners (comma-separated)<input name="bnpl_partners" value="{{ r.bnpl_partners or '' }}" placeholder="baadmay,kalpay,qistbazaar,alfamall"></label>
 <label>Verification evidence (internal; required for the verified badge)<textarea name="verification_notes" placeholder="e.g. NTN checked, called the listed number 2026-11-03, physical shop visited">{{ r.verification_notes or '' }}</textarea></label>
 <label>Permission reference (written permission, data agreement or feed agreement)<input name="permission_reference" value="{{ r.permission_reference or '' }}"></label>
 <h3>Data feed</h3>

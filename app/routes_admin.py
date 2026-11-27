@@ -107,7 +107,7 @@ def dashboard(request: Request, days: int = 30, db: Session = Depends(get_db), u
 RETAILER_FIELDS = ["name", "domain", "city", "delivery_regions", "phone", "email", "address",
                    "return_policy_url", "warranty_policy_url", "description", "logo_url", "status",
                    "verification_notes", "feed_method", "feed_url", "permission_reference",
-                   "affiliate_status", "affiliate_param", "plan"]
+                   "affiliate_status", "affiliate_param", "plan", "bank_partners", "bnpl_partners"]
 
 
 @router.get("/retailers")
@@ -151,6 +151,12 @@ async def retailer_save(request: Request, db: Session = Depends(get_db), u=Depen
     r.affiliate_status = r.affiliate_status or "none"
     r.plan = r.plan or "free"
     r.verified = form.get("verified") == "on"
+    r.cod_available = form.get("cod_available") == "on"
+    r.open_parcel = form.get("open_parcel") == "on"
+    try:
+        r.trust_score = round(float(form.get("trust_score") or 9.0), 1)
+    except ValueError:
+        r.trust_score = 9.0
     if r.verified and not r.verification_notes:
         flash(request, "Add verification evidence before marking a store as verified.", "err")
         r.verified = False

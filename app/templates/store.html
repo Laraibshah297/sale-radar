@@ -1,10 +1,19 @@
 {% extends "base.html" %}
-{% block title %}{{ r.name }}: store profile | {{ settings.SITE_NAME }}{% endblock %}
+{% block title %}{{ r.name }}: store profile & trust score | {{ settings.SITE_NAME }}{% endblock %}
 {% block content %}
 <div class="cols">
 <div class="card">
-  <h1>{{ r.name }} {% if r.verified %}<span class="badge blue">✔ Verified store</span>{% else %}<span class="badge">Not yet verified</span>{% endif %}</h1>
+  <h1>{{ r.name }}
+    {% if r.verified %}<span class="badge blue">✔ Verified store</span>{% else %}<span class="badge">Not yet verified</span>{% endif %}
+    {% if r.trust_score %}<span class="badge good">★ Trust {{ r.trust_score }}/10</span>{% endif %}
+  </h1>
   {% if r.description %}<p>{{ r.description }}</p>{% endif %}
+  <div class="chips" style="margin:10px 0">
+    {% if r.open_parcel %}<span class="badge good">📦 Open Parcel Before Payment</span>{% endif %}
+    {% if r.cod_available %}<span class="badge">💵 Cash on Delivery (COD)</span>{% endif %}
+    {% if r.bank_partners %}<span class="badge blue">💳 Bank Discounts: {{ r.bank_partners|upper }}</span>{% endif %}
+    {% if r.bnpl_partners %}<span class="badge spon">📅 BNPL: {{ r.bnpl_partners|title }}</span>{% endif %}
+  </div>
   <ul class="trust">
     <li>Website: <a href="https://{{ r.domain }}" rel="nofollow noopener" target="_blank">{{ r.domain }}</a></li>
     {% if r.city %}<li>City: {{ r.city }}</li>{% endif %}

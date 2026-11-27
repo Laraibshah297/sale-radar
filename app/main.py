@@ -24,9 +24,12 @@ def create_app(init: bool = True) -> FastAPI:
         init_db()
         if settings.AUTO_SEED_DEMO:
             with SessionLocal() as db:
-                if (db.scalar(select(func.count()).select_from(Product)) or 0) == 0:
+                from .models import Retailer
+                has_products = (db.scalar(select(func.count()).select_from(Product)) or 0) > 0
+                has_old_fictional = db.scalar(select(Retailer.id).where(Retailer.domain.like("%.example"))) is not None
+                if not has_products or has_old_fictional:
                     from .demo import seed
-                    seed(db)
+                    seed(db, force=has_old_fictional)
     app = FastAPI(
         title=settings.SITE_NAME,
         version="2.0.0",

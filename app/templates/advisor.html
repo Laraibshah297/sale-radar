@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Smart AI Budget Shopping Concierge | {{ settings.SITE_NAME }}{% endblock %}
+{% block description %}Tell SaleRadar your PKR budget, category, priority use-case, and bank card — get instant, unbiased product recommendations backed by 30-day price history.{% endblock %}
+{% block content %}
+<h1>🤖 Smart AI Budget & Use-Case Shopping Concierge</h1>
+<p class="mute">Not sure which model gives the best value in Pakistan? Enter your budget, priority, and bank card — our Deal Truth Engine ranks every in-stock item objectively (zero sponsored bias).</p>
+
+<form class="card form" method="get" action="/advisor" style="max-width:none;margin-bottom:22px">
+  <div class="cols">
+    <label>Category
+      <select name="cat">
+        <option value="">Any Category</option>
+        {% for c in categories %}<option value="{{ c.slug }}" {{ 'selected' if cat == c.slug }}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Max Total Budget (PKR)
+      <input name="budget" value="{{ budget }}" inputmode="numeric" placeholder="e.g. 120000">
+    </label>
+    <label>What matters most?
+      <select name="priority">
+        {% for k, lbl in [('value','Best Overall Deal & Value'),('gaming','Gaming / High Refresh Performance'),('camera','Camera & Content Creation'),('battery','Battery Life & Efficiency'),('work','University / Office & Productivity')] %}
+        <option value="{{ k }}" {{ 'selected' if priority == k }}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>My Bank Card / Wallet (Optional)
+      <select name="card">
+        <option value="">None / Cash on Delivery</option>
+        {% for slug, info in bank_cards.items() %}<option value="{{ slug }}" {{ 'selected' if card_slug == slug }}>{{ info.name }} ({{ info.pct }}% Off)</option>{% endfor %}
+      </select>
+    </label>
+  </div>
+  <div><button class="primary">Find My Top Recommendations</button></div>
+</form>
+
+{% if picks %}
+<div class="cols">
+  {% for x in picks %}{% set c = x.card %}
+  <div class="card" style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="badge good">🏆 Match Score: {{ x.score }}/100</span>
+      {% if x.verdict %}<span class="badge {{ x.verdict.tone }}">{{ x.verdict.icon }} {{ x.verdict.verdict }}</span>{% endif %}
+    </div>
+    <div style="display:flex;gap:14px;align-items:center">
+      <img src="{{ c.product.image_url or '/static/placeholder.svg' }}" alt="{{ c.product.title }}" style="width:88px;height:88px;object-fit:cover;border-radius:10px;border:1px solid var(--line)" onerror="this.onerror=null;this.src='/static/placeholder.svg'">
+      <div>
+        <a href="/p/{{ c.product.slug }}?v={{ x.variant.id }}{% if card_slug %}&card={{ card_slug }}{% endif %}"><b>{{ c.product.title }}</b></a>
+        <div class="small mute">{{ x.variant.label }} · Best at <b>{{ x.offer.retailer.name }}</b></div>
+        <div class="price" style="margin-top:4px">{{ x.effective_price|pkr }}</div>
+        {% if x.lowest_monthly %}<div class="small mute">or from {{ x.lowest_monthly|pkr }}/mo on installments</div>{% endif %}
+      </div>
+    </div>
+    <ul class="small" style="margin:0;padding-left:18px">
+      {% for r in x.reasons %}<li>{{ r }}</li>{% endfor %}
+    </ul>
+    <div style="margin-top:auto;padding-top:6px">
+      <a class="btn primary small" href="/p/{{ c.product.slug }}?v={{ x.variant.id }}{% if card_slug %}&card={{ card_slug }}{% endif %}" style="width:100%">Compare all {{ c.stores }} stores →</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card"><h3>No in-stock products found within Rs {{ budget }}</h3><p class="mute">Try raising your budget slightly or switching category.</p></div>
+{% endif %}
+{% endblock %}

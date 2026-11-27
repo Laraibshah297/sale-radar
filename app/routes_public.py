@@ -1,5 +1,6 @@
 import secrets
 from decimal import Decimal, InvalidOperation
+from urllib.parse import quote
 from xml.sax.saxutils import escape
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -14,9 +15,12 @@ from .importer import host_allowed
 from .mailer import send_email
 from .models import (Category, ClickEvent, ContactMessage, Offer, PriceAlert, PriceReport, Product,
                      ProductView, Retailer, SearchLog, User, Variant)
+from .pakistan_market import (BANK_CARDS, PTA_DEVICE_PRESETS, ai_buy_verdict, calculate_installments,
+                              estimate_pta_tax, net_price_with_card)
 from .security import hash_password, looks_like_bot, require_csrf, session_id
-from .services import (DEFAULT_KEYS, card_for, deal_quality, facets, offer_deal_audit, offers_for_variant,
-                       price_history, search_products, sort_cards, sponsored_for, top_price_drops)
+from .services import (DEFAULT_KEYS, bank_card_deals, card_for, deal_quality, facets, offer_deal_audit,
+                       offers_for_variant, price_history, search_products, smart_budget_advisor,
+                       sort_cards, sponsored_for, top_price_drops)
 from .web import current_user, flash, redirect, render
 
 router = APIRouter()
@@ -41,7 +45,7 @@ def home(request: Request, db: Session = Depends(get_db), _u=Depends(current_use
     popular, _, _ = search_products(db, "", limit=8)
     deals = top_price_drops(db, limit=4)
     return render(request, "home.html", {"categories": cats, "groups": groups, "retailers": retailers,
-                                         "popular": popular, "deals": deals})
+                                         "popular": popular, "deals": deals, "bank_cards": BANK_CARDS})
 
 
 @router.get("/deals")
@@ -147,7 +151,7 @@ def _listing(request, db, *, q, category):
 
 @router.get("/p/{slug}")
 def product(slug: str, request: Request, v: int | None = None, sort: str = "delivered", ref: str = "", cond: str = "",
-            db: Session = Depends(get_db), _u=Depends(current_user)):
+            card: str = "", db: Session = Depends(get_db), _u=Depends(current_user)):
     p = db.scalar(select(Product).where(Product.slug == slug)
                   .options(selectinload(Product.variants), selectinload(Product.category)))
     if not p:
@@ -157,22 +161,71 @@ def product(slug: str, request: Request, v: int | None = None, sort: str = "deli
     counts = {x.id: len(offers_for_variant(db, x)) for x in variants}
     variant = next((x for x in variants if x.id == v), None) or (
         max(variants, key=lambda x: counts[x.id]) if variants else None)
-    offers = offers_for_variant(db, variant, sort=sort) if variant else []
+    offers = offers_for_variant(db, variant, sort=sort if sort != "net_card" else "delivered") if variant else []
     # never rank new against used/refurbished: one condition at a time
     conditions = sorted({o.condition for o in offers}, key=lambda c: (c != "new", c))
     cond = cond if cond in conditions else (conditions[0] if conditions else "new")
     offers = [o for o in offers if o.condition == cond]
+    card_slug = card.lower().strip() if card.lower().strip() in BANK_CARDS else ""
+    net_calcs = {o.id: net_price_with_card(o, card_slug) for o in offers}
+    if sort == "net_card" or card_slug:
+        offers = sorted(
+            offers,
+            key=lambda o: (
+                1 if o.stock_status == "out_of_stock" else 0,
+                net_calcs[o.id]["net_delivered_price"]
+                if net_calcs[o.id]["net_delivered_price"] is not None
+                else net_calcs[o.id]["net_item_price"],
+            ),
+        )
     pickers = variant_pickers(variants, variant, counts)
     hist = price_history(db, variant) if variant else []
     in_stock = [o for o in offers if o.stock_status != "out_of_stock"]
     current_low = min((o.price for o in in_stock), default=None)
+    net_low = min((net_calcs[o.id]["net_item_price"] for o in in_stock), default=current_low)
     dq = deal_quality(current_low, hist)
+    verdict = ai_buy_verdict(current_low, dq, len(in_stock))
     audits = {o.id: offer_deal_audit(o, dq) for o in offers}
+    cat_slug = p.category.slug if p.category else None
+    installments = calculate_installments(current_low, cat_slug) if current_low else []
+
+    # Non-PTA Landed Cost Intelligence
+    pta_info = None
+    if variant and variant.region and "non-pta" in variant.region.lower() and current_low:
+        tax = estimate_pta_tax(title=p.title)
+        pta_sibling_low = None
+        for sv in variants:
+            if sv.id != variant.id and sv.region and "pta approved" in sv.region.lower() and sv.storage == variant.storage:
+                s_offs = [so for so in offers_for_variant(db, sv) if so.stock_status != "out_of_stock"]
+                if s_offs:
+                    pta_sibling_low = min(so.price for so in s_offs)
+                    break
+        pta_info = {
+            **tax,
+            "landed_passport": current_low + tax["passport_tax"],
+            "landed_cnic": current_low + tax["cnic_tax"],
+            "official_pta_low": pta_sibling_low,
+        }
+
+    best_store = in_stock[0].retailer.name if in_stock else settings.SITE_NAME
+    wa_text = (
+        f"🔥 *{p.title}* ({variant.label if variant else 'Standard'})\n"
+        f"💰 Lowest Verified Price: Rs {int(current_low):,} at {best_store}\n"
+        f"{'✅ ' + dq['label'] + ' (Score ' + str(dq['score']) + '/100)\n' if dq else ''}"
+        f"🔗 Compare live offers: {settings.BASE_URL}/p/{p.slug}?v={variant.id if variant else ''}"
+        if current_low
+        else f"Compare {p.title} on {settings.SITE_NAME}: {settings.BASE_URL}/p/{p.slug}"
+    )
+    wa_url = f"https://wa.me/?text={quote(wa_text)}"
+
     db.add(ProductView(product_id=p.id, session_id=session_id(request), from_search=(ref == "search")))
     db.commit()
     return render(request, "product.html", {
         "p": p, "variants": variants, "variant": variant, "counts": counts, "offers": offers, "sort": sort,
-        "history": hist, "deal": dq, "audits": audits, "current_low": current_low,
+        "history": hist, "deal": dq, "verdict": verdict, "audits": audits, "current_low": current_low,
+        "net_low": net_low, "net_calcs": net_calcs, "selected_card": card_slug, "bank_cards": BANK_CARDS,
+        "installments": installments, "pta_info": pta_info, "wa_url": wa_url,
+        "is_saved": p.id in (request.session.get("watchlist") or []),
         "sponsored": sponsored_for(db, variant=variant) if variant else [],
         "card": card_for(p, offers),
         "pickers": pickers, "conditions": conditions, "cond": cond,
@@ -404,10 +457,129 @@ def robots():
             f"Sitemap: {settings.BASE_URL}/sitemap.xml\n")
 
 
+@router.get("/bank-deals")
+def bank_deals_page(request: Request, card: str = "hbl", cat: str = "", db: Session = Depends(get_db),
+                    _u=Depends(current_user)):
+    card_slug = card.lower().strip() if card.lower().strip() in BANK_CARDS else "hbl"
+    deals = bank_card_deals(db, card_slug=card_slug, category_slug=cat, limit=36)
+    cats = db.scalars(select(Category).order_by(Category.name)).all()
+    return render(request, "bank_deals.html", {
+        "bank_cards": BANK_CARDS, "selected_card": BANK_CARDS[card_slug], "card_slug": card_slug,
+        "deals": deals, "categories": cats, "current_cat": cat,
+    })
+
+
+@router.get("/pta-calculator")
+def pta_calculator_page(request: Request, preset: str = "iphone-15", usd: str = "", device_price: str = "",
+                        db: Session = Depends(get_db), _u=Depends(current_user)):
+    chosen_preset = next((x for x in PTA_DEVICE_PRESETS if x["slug"] == preset), None)
+    usd_val = None
+    title_hint = ""
+    if usd.strip():
+        try:
+            usd_val = max(10.0, float(usd.replace(",", "")))
+        except ValueError:
+            usd_val = 399.0
+    elif chosen_preset:
+        title_hint = chosen_preset["name"]
+        usd_val = float(chosen_preset["usd"])
+    else:
+        usd_val = 699.0
+    result = estimate_pta_tax(usd_value=usd_val, title=title_hint)
+    dev_pkr = _dec(device_price)
+    # Also fetch live smartphones from catalog that have Non-PTA variants
+    phone_cat = db.scalar(select(Category).where(Category.slug == "mobile-phones"))
+    phone_cards, _, _ = search_products(db, "", category=phone_cat, in_stock=True, limit=12)
+    return render(request, "pta_calculator.html", {
+        "presets": PTA_DEVICE_PRESETS, "selected_preset": preset if not usd.strip() else "",
+        "usd": usd or (str(chosen_preset["usd"]) if chosen_preset else "699"),
+        "device_price": device_price, "dev_pkr": dev_pkr, "result": result,
+        "phones": phone_cards,
+    })
+
+
+@router.get("/installments")
+def installments_page(request: Request, monthly: str = "15000", cat: str = "", provider: str = "",
+                      db: Session = Depends(get_db), _u=Depends(current_user)):
+    max_monthly = _dec(monthly) or Decimal("15000")
+    cat_obj = db.scalar(select(Category).where(Category.slug == cat)) if cat else None
+    cards, _, _ = search_products(db, "", category=cat_obj, in_stock=True, limit=200)
+    eligible = []
+    for c in cards:
+        if not c.lowest:
+            continue
+        plans = calculate_installments(c.lowest, c.product.category.slug if c.product.category else None)
+        if provider:
+            plans = [pl for pl in plans if provider.lower() in pl["provider"].lower()]
+        affordable = [pl for pl in plans if pl["monthly"] <= max_monthly]
+        if affordable:
+            best_plan = min(affordable, key=lambda x: x["monthly"])
+            eligible.append({"card": c, "best_plan": best_plan, "plans": affordable})
+    eligible.sort(key=lambda x: -float(x["card"].lowest or 0))
+    cats = db.scalars(select(Category).order_by(Category.name)).all()
+    return render(request, "installments.html", {
+        "monthly": int(max_monthly), "cat": cat, "provider": provider,
+        "items": eligible[:36], "categories": cats,
+    })
+
+
+@router.get("/advisor")
+def advisor_page(request: Request, budget: str = "120000", cat: str = "mobile-phones",
+                 priority: str = "value", card: str = "", db: Session = Depends(get_db),
+                 _u=Depends(current_user)):
+    b_val = _dec(budget)
+    picks = smart_budget_advisor(db, budget_pkr=b_val, category_slug=cat, priority=priority,
+                                 card_slug=card, limit=6)
+    cats = db.scalars(select(Category).order_by(Category.name)).all()
+    return render(request, "advisor.html", {
+        "budget": budget, "cat": cat, "priority": priority, "card_slug": card,
+        "bank_cards": BANK_CARDS, "categories": cats, "picks": picks,
+    })
+
+
+@router.get("/watchlist")
+def watchlist_page(request: Request, db: Session = Depends(get_db), _u=Depends(current_user)):
+    ids = [int(x) for x in (request.session.get("watchlist") or []) if str(x).isdigit()]
+    cards = []
+    for pid in ids:
+        p = db.scalar(select(Product).where(Product.id == pid)
+                      .options(selectinload(Product.variants), selectinload(Product.category)))
+        if not p:
+            continue
+        all_offers = []
+        for v in p.variants:
+            all_offers.extend(offers_for_variant(db, v))
+        if all_offers:
+            cards.append(card_for(p, all_offers))
+    wa_lines = ["🛍 *My Saved Watchlist on SaleRadar*"]
+    for c in cards:
+        wa_lines.append(f"• {c.product.title}: Rs {int(c.lowest):,} ({settings.BASE_URL}/p/{c.product.slug})")
+    wa_share = f"https://wa.me/?text={quote(chr(10).join(wa_lines))}" if cards else ""
+    return render(request, "watchlist.html", {"cards": cards, "wa_share": wa_share})
+
+
+@router.post("/watchlist/toggle", dependencies=[Depends(require_csrf)])
+def watchlist_toggle(request: Request, product_id: int = Form(...), next_url: str = Form("")):
+    wl = [int(x) for x in (request.session.get("watchlist") or []) if str(x).isdigit()]
+    if product_id in wl:
+        wl.remove(product_id)
+        flash(request, "Removed from your Saved Watchlist.")
+    else:
+        wl.insert(0, product_id)
+        wl = wl[:30]
+        flash(request, "Saved to your Watchlist!")
+    request.session["watchlist"] = wl
+    back = next_url if next_url.startswith("/") and not next_url.startswith("//") else (request.headers.get("referer") or "/watchlist")
+    return redirect(back if back.startswith(settings.BASE_URL) or back.startswith("/") else "/watchlist")
+
+
 @router.get("/sitemap.xml")
 def sitemap(db: Session = Depends(get_db)):
-    urls = [f"{settings.BASE_URL}/", f"{settings.BASE_URL}/deals", f"{settings.BASE_URL}/compare",
-            f"{settings.BASE_URL}/stores"]
+    urls = [
+        f"{settings.BASE_URL}/", f"{settings.BASE_URL}/deals", f"{settings.BASE_URL}/bank-deals",
+        f"{settings.BASE_URL}/pta-calculator", f"{settings.BASE_URL}/installments",
+        f"{settings.BASE_URL}/advisor", f"{settings.BASE_URL}/compare", f"{settings.BASE_URL}/stores",
+    ]
     urls += [f"{settings.BASE_URL}/c/{s}" for s in db.scalars(select(Category.slug))]
     urls += [f"{settings.BASE_URL}/p/{s}" for s in db.scalars(select(Product.slug))]
     urls += [f"{settings.BASE_URL}/store/{s}" for s in

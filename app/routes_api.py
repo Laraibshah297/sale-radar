@@ -1,10 +1,12 @@
-"""REST API v1 & Model Context Protocol (MCP) JSON-RPC 2.0 Server.
+"""REST API v1 & Model Context Protocol (MCP) JSON-RPC 2.0 Server (v3.0).
 
 Exposes structured endpoints for programmatic integrations, mobile apps,
 and autonomous AI agents (Claude, Cursor, Antigravity, OpenAI) to search
-products, verify 30-day price history, detect fake markdowns, and subscribe
-to price-drop alerts.
+products, verify 30-day price history, detect fake markdowns, calculate
+FBR PTA smartphone taxes, optimize Bank Card / BNPL installments, and
+receive budget-aware product recommendations.
 """
+import json
 import secrets
 from decimal import Decimal, InvalidOperation
 
@@ -17,9 +19,11 @@ from .config import settings
 from .db import get_db
 from .mailer import send_email
 from .models import Category, PriceAlert, Product, Retailer, Variant
-from .services import (card_for, deal_quality, freshness, offer_deal_audit,
-                       offers_for_variant, price_history, search_products,
-                       top_price_drops)
+from .pakistan_market import (BANK_CARDS, ai_buy_verdict, calculate_installments,
+                              estimate_pta_tax, net_price_with_card)
+from .services import (bank_card_deals, card_for, deal_quality, freshness,
+                       offer_deal_audit, offers_for_variant, price_history,
+                       search_products, smart_budget_advisor, top_price_drops)
 
 router = APIRouter()
 
@@ -30,8 +34,9 @@ class AlertCreateRequest(BaseModel):
     target_price: float = Field(..., gt=0, description="Target price in PKR")
 
 
-def _serialize_offer(o, category_slug=None, dq=None) -> dict:
+def _serialize_offer(o, category_slug=None, dq=None, card_slug: str = "") -> dict:
     aud = offer_deal_audit(o, dq)
+    net = net_price_with_card(o, card_slug)
     return {
         "id": o.id,
         "retailer": {
@@ -41,6 +46,11 @@ def _serialize_offer(o, category_slug=None, dq=None) -> dict:
             "domain": o.retailer.domain,
             "verified": o.retailer.verified,
             "city": o.retailer.city,
+            "trust_score": o.retailer.trust_score,
+            "cod_available": o.retailer.cod_available,
+            "open_parcel": o.retailer.open_parcel,
+            "bank_partners": (o.retailer.bank_partners or "").split(",") if o.retailer.bank_partners else [],
+            "bnpl_partners": (o.retailer.bnpl_partners or "").split(",") if o.retailer.bnpl_partners else [],
         },
         "retailer_sku": o.retailer_sku,
         "retailer_title": o.retailer_title,
@@ -48,6 +58,8 @@ def _serialize_offer(o, category_slug=None, dq=None) -> dict:
         "original_price": float(o.original_price) if o.original_price is not None else None,
         "claimed_discount_pct": o.claimed_discount_pct,
         "promo_code": o.promo_code,
+        "net_item_price": float(net["net_item_price"]),
+        "total_stacked_discount": float(net["total_discount"]),
         "currency": o.currency,
         "shipping_cost": float(o.shipping_cost) if o.shipping_cost is not None else None,
         "delivered_price": float(o.delivered_price) if o.delivered_price is not None else None,
@@ -69,6 +81,7 @@ def _serialize_card(c) -> dict:
         "slug": p.slug,
         "brand": p.brand,
         "model_number": p.model_number,
+        "image_url": p.image_url,
         "category": p.category.slug if p.category else None,
         "category_name": p.category.name if p.category else None,
         "lowest_price": float(c.lowest) if c.lowest is not None else None,
@@ -87,7 +100,7 @@ def _serialize_card(c) -> dict:
 @router.get("/api/v1/health", tags=["System"])
 def api_health(db: Session = Depends(get_db)):
     db.execute(select(1))
-    return {"status": "ok", "service": settings.SITE_NAME, "currency": settings.DEFAULT_CURRENCY}
+    return {"status": "ok", "version": "3.0.0", "service": settings.SITE_NAME, "currency": settings.DEFAULT_CURRENCY}
 
 
 @router.get("/api/v1/categories", tags=["Catalogue"])
@@ -119,6 +132,11 @@ def api_stores(verified_only: bool = False, db: Session = Depends(get_db)):
                 "city": r.city,
                 "delivery_regions": r.delivery_regions,
                 "verified": r.verified,
+                "trust_score": r.trust_score,
+                "cod_available": r.cod_available,
+                "open_parcel": r.open_parcel,
+                "bank_partners": (r.bank_partners or "").split(",") if r.bank_partners else [],
+                "bnpl_partners": (r.bnpl_partners or "").split(",") if r.bnpl_partners else [],
                 "url": f"{settings.BASE_URL}/store/{r.slug}",
             }
             for r in rs
@@ -170,6 +188,7 @@ def api_product_detail(
     variant_id: int | None = None,
     condition: str = "new",
     sort: str = "delivered",
+    card: str = "",
     db: Session = Depends(get_db),
 ):
     p = db.scalar(
@@ -190,7 +209,20 @@ def api_product_detail(
     in_stock = [o for o in offers if o.stock_status != "out_of_stock"]
     current_low = min((o.price for o in in_stock), default=None)
     dq = deal_quality(current_low, hist)
+    verdict = ai_buy_verdict(current_low, dq, len(in_stock))
     cat_slug = p.category.slug if p.category else None
+    installments = [
+        {
+            "provider": pl["provider"],
+            "badge": pl["badge"],
+            "months": pl["months"],
+            "upfront_pkr": float(pl["upfront"]),
+            "monthly_pkr": float(pl["monthly"]),
+            "total_pkr": float(pl["total"]),
+            "shariah_compliant": pl["shariah"],
+        }
+        for pl in (calculate_installments(current_low, cat_slug) if current_low else [])
+    ]
     return {
         "id": p.id,
         "title": p.title,
@@ -217,6 +249,7 @@ def api_product_detail(
         ],
         "lowest_price": float(current_low) if current_low is not None else None,
         "currency": settings.DEFAULT_CURRENCY,
+        "ai_buy_verdict": verdict,
         "deal_quality": {
             "label": dq["label"],
             "tone": dq["tone"],
@@ -228,7 +261,8 @@ def api_product_detail(
         }
         if dq
         else None,
-        "offers": [_serialize_offer(o, cat_slug, dq) for o in offers],
+        "bnpl_and_emi_plans": installments,
+        "offers": [_serialize_offer(o, cat_slug, dq, card_slug=card) for o in offers],
         "price_history_90d": [{"day": pt.day, "lowest_price": float(pt.price)} for pt in hist],
     }
 
@@ -254,6 +288,115 @@ def api_live_deals(category: str | None = None, limit: int = Query(20, ge=1, le=
                 "deal_label": d["deal"]["label"],
             }
             for d in deals
+        ],
+    }
+
+
+@router.get("/api/v1/bank-deals", tags=["Pakistan Fintech"])
+def api_bank_deals(
+    card: str = Query("hbl", description="hbl | alfalah | meezan | scb | ubl | nayapay | jazzcash"),
+    category: str = "",
+    limit: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    c_slug = card.lower().strip()
+    if c_slug not in BANK_CARDS:
+        raise HTTPException(400, f"Unsupported card '{card}'. Choose one of {list(BANK_CARDS.keys())}")
+    rows = bank_card_deals(db, card_slug=c_slug, category_slug=category, limit=limit)
+    return {
+        "card": {k: (float(v) if isinstance(v, Decimal) else v) for k, v in BANK_CARDS[c_slug].items()},
+        "count": len(rows),
+        "deals": [
+            {
+                "product": _serialize_card(r["card"]),
+                "retailer": r["offer"].retailer.name,
+                "list_price_pkr": float(r["offer"].price),
+                "net_card_price_pkr": float(r["net_price"]),
+                "total_saved_pkr": float(r["saved"]),
+                "promo_code": r["offer"].promo_code,
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.get("/api/v1/pta-tax", tags=["Pakistan Fintech"])
+def api_pta_tax(
+    usd_value: float | None = Query(None, gt=0, description="Device C&F USD value"),
+    model_name: str = Query("", description="Phone model name, e.g. 'Apple iPhone 15'"),
+    device_price_pkr: float | None = Query(None, gt=0, description="Optional Non-PTA buying price in PKR"),
+):
+    res = estimate_pta_tax(usd_value=usd_value, title=model_name)
+    out = {
+        "matched_preset": res["matched_preset"],
+        "usd_value": res["usd_value"],
+        "fbr_slab": res["slab"],
+        "passport_tax_pkr": float(res["passport_tax"]),
+        "cnic_tax_pkr": float(res["cnic_tax"]),
+        "passport_savings_pkr": float(res["passport_savings"]),
+    }
+    if device_price_pkr:
+        out["total_landed_passport_pkr"] = round(device_price_pkr + float(res["passport_tax"]), 2)
+        out["total_landed_cnic_pkr"] = round(device_price_pkr + float(res["cnic_tax"]), 2)
+    return out
+
+
+@router.get("/api/v1/installments", tags=["Pakistan Fintech"])
+def api_installments(price_pkr: float = Query(..., gt=0), category: str = ""):
+    plans = calculate_installments(price_pkr, category)
+    return {
+        "price_pkr": price_pkr,
+        "plans": [
+            {
+                "provider": p["provider"],
+                "badge": p["badge"],
+                "type": p["type"],
+                "months": p["months"],
+                "upfront_pkr": float(p["upfront"]),
+                "monthly_pkr": float(p["monthly"]),
+                "total_pkr": float(p["total"]),
+                "shariah_compliant": p["shariah"],
+                "note": p["markup_note"],
+            }
+            for p in plans
+        ],
+    }
+
+
+@router.get("/api/v1/advisor", tags=["AI Concierge"])
+def api_smart_advisor(
+    budget_pkr: float = Query(120000, gt=0),
+    category: str = Query("mobile-phones"),
+    priority: str = Query("value", description="value | gaming | camera | battery | work"),
+    card: str = Query(""),
+    limit: int = Query(5, ge=1, le=12),
+    db: Session = Depends(get_db),
+):
+    picks = smart_budget_advisor(
+        db,
+        budget_pkr=Decimal(str(budget_pkr)),
+        category_slug=category,
+        priority=priority,
+        card_slug=card,
+        limit=limit,
+    )
+    return {
+        "budget_pkr": budget_pkr,
+        "category": category,
+        "priority": priority,
+        "count": len(picks),
+        "recommendations": [
+            {
+                "product": _serialize_card(x["card"]),
+                "variant": x["variant"].label,
+                "best_store": x["offer"].retailer.name,
+                "effective_price_pkr": float(x["effective_price"]),
+                "advisor_score": x["score"],
+                "verdict": x["verdict"]["verdict"] if x["verdict"] else None,
+                "reasons": x["reasons"],
+                "lowest_monthly_installment_pkr": float(x["lowest_monthly"]) if x["lowest_monthly"] else None,
+            }
+            for x in picks
         ],
     }
 
@@ -296,7 +439,7 @@ def api_create_alert(body: AlertCreateRequest, db: Session = Depends(get_db)):
 MCP_TOOLS = [
     {
         "name": "search_products",
-        "description": "Search Pakistani e-commerce products by brand, model, Roman Urdu keywords, or category and return lowest verified prices.",
+        "description": "Search Pakistani e-commerce products by brand, model, Roman Urdu keywords, or category and return lowest verified prices with images.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -309,11 +452,12 @@ MCP_TOOLS = [
     },
     {
         "name": "get_product_offers_and_truth_score",
-        "description": "Fetch all verified store offers, delivered prices, 30-day price history, and fake-markdown audit for a product slug.",
+        "description": "Fetch verified store offers, AI Buy/Wait verdict, bank card net prices, BNPL installments, and fake-markdown audit for a product slug.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "slug": {"type": "string", "description": "Product slug, e.g. 'samsung-galaxy-a55-5g'"},
+                "card": {"type": "string", "description": "Optional bank card/wallet slug: hbl, alfalah, meezan, scb, ubl, nayapay, jazzcash"},
             },
             "required": ["slug"],
         },
@@ -329,6 +473,44 @@ MCP_TOOLS = [
             },
         },
     },
+    {
+        "name": "calculate_pta_tax",
+        "description": "Calculate official Pakistan FBR DIRBS PTA smartphone registration tax on Passport vs CNIC.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "model_name": {"type": "string", "description": "Smartphone model name, e.g. 'Apple iPhone 15'"},
+                "usd_value": {"type": "number", "description": "Optional USD value if model is custom"},
+                "device_price_pkr": {"type": "number", "description": "Optional Non-PTA phone price in PKR to compute total landed cost"},
+            },
+        },
+    },
+    {
+        "name": "calculate_bnpl_installments",
+        "description": "Calculate Pakistani BNPL (BaadMay 3x Debit, KalPay Halal, QistBazaar CNIC) and 0% Bank EMI plans for any PKR price.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "price_pkr": {"type": "number", "description": "Product price in PKR"},
+                "category": {"type": "string", "description": "Optional category slug"},
+            },
+            "required": ["price_pkr"],
+        },
+    },
+    {
+        "name": "recommend_best_products_for_budget",
+        "description": "Smart AI shopping concierge that recommends top verified products in Pakistan for a given PKR budget, category, priority, and bank card.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "budget_pkr": {"type": "number", "description": "Max budget in PKR, e.g. 75000"},
+                "category": {"type": "string", "description": "Category slug, e.g. 'mobile-phones', 'laptops'"},
+                "priority": {"type": "string", "description": "value | gaming | camera | battery | work"},
+                "card": {"type": "string", "description": "Optional bank card slug (hbl, alfalah, meezan, jazzcash)"},
+            },
+            "required": ["budget_pkr"],
+        },
+    },
 ]
 
 
@@ -338,7 +520,7 @@ def mcp_manifest():
     return {
         "protocol": "mcp",
         "version": "2024-11-05",
-        "serverInfo": {"name": "saleradar-mcp", "version": "1.0.0"},
+        "serverInfo": {"name": "saleradar-mcp", "version": "3.0.0"},
         "tools": MCP_TOOLS,
     }
 
@@ -362,7 +544,7 @@ async def mcp_jsonrpc(request: Request, db: Session = Depends(get_db)):
             "result": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "saleradar-mcp", "version": "1.0.0"},
+                "serverInfo": {"name": "saleradar-mcp", "version": "3.0.0"},
             },
         }
     if method == "tools/list":
@@ -386,16 +568,32 @@ async def mcp_jsonrpc(request: Request, db: Session = Depends(get_db)):
                     db=db,
                 )
             elif name == "get_product_offers_and_truth_score":
-                res = api_product_detail(slug=args.get("slug", ""), db=db)
+                res = api_product_detail(slug=args.get("slug", ""), card=args.get("card", ""), db=db)
             elif name == "get_verified_price_drops":
                 res = api_live_deals(category=args.get("category"), limit=int(args.get("limit") or 10), db=db)
+            elif name == "calculate_pta_tax":
+                res = api_pta_tax(
+                    usd_value=args.get("usd_value"),
+                    model_name=args.get("model_name", ""),
+                    device_price_pkr=args.get("device_price_pkr"),
+                )
+            elif name == "calculate_bnpl_installments":
+                res = api_installments(price_pkr=float(args.get("price_pkr", 50000)), category=args.get("category", ""))
+            elif name == "recommend_best_products_for_budget":
+                res = api_smart_advisor(
+                    budget_pkr=float(args.get("budget_pkr", 100000)),
+                    category=args.get("category", "mobile-phones"),
+                    priority=args.get("priority", "value"),
+                    card=args.get("card", ""),
+                    limit=5,
+                    db=db,
+                )
             else:
                 return {
                     "jsonrpc": "2.0",
                     "id": req_id,
                     "error": {"code": -32601, "message": f"Unknown tool: {name}"},
                 }
-            import json
             return {
                 "jsonrpc": "2.0",
                 "id": req_id,

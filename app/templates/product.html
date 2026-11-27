@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ p.title }}{% if variant and variant.label != 'Standard' %} {{ variant.label }}{% endif %} price in Pakistan | {{ settings.SITE_NAME }}{% endblock %}
-{% block description %}Compare {{ p.title }} prices from {{ offers|length }} Pakistani stores. Lowest price {{ current_low|pkr }}. See delivery, warranty, stock and price history.{% endblock %}
+{% block description %}Compare {{ p.title }} prices from {{ offers|length }} Pakistani stores. Lowest price {{ current_low|pkr }}. Check 30-day Deal Truth Score, HBL/Alfalah bank discounts, BaadMay BNPL, and price history.{% endblock %}
 {% block head %}
 <link rel="canonical" href="{{ settings.BASE_URL }}/p/{{ p.slug }}">
 {% if offers %}<script type="application/ld+json">{{ jsonld(p, variant, offers)|safe }}</script>{% endif %}
@@ -9,21 +9,38 @@
 <p class="small mute"><a href="/">Home</a>{% if p.category %} › <a href="/c/{{ p.category.slug }}">{{ p.category.name }}</a>{% endif %} › {{ p.brand }}</p>
 <div class="pd">
   <div>
-    <div class="imgbox">{% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}">{% else %}<img src="/static/placeholder.svg" alt="" width="200">{% endif %}</div>
+    <div class="imgbox">{% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" onerror="this.onerror=null;this.src='/static/placeholder.svg'">{% else %}<img src="/static/placeholder.svg" alt="" width="200">{% endif %}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <a class="btn wa small" href="{{ wa_url }}" target="_blank" rel="noopener" style="flex:1">📲 Share on WhatsApp</a>
+      <form method="post" action="/watchlist/toggle" style="display:inline;flex:1">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="hidden" name="product_id" value="{{ p.id }}">
+        <input type="hidden" name="next_url" value="/p/{{ p.slug }}{% if variant %}?v={{ variant.id }}{% endif %}">
+        <button class="small" style="width:100%">{% if is_saved %}❤️ Saved in Watchlist{% else %}🤍 Save to Watchlist{% endif %}</button>
+      </form>
+    </div>
     {% if p.specs %}<div class="card" style="margin-top:14px"><h3>Key specs</h3><table>{% for k,v in p.specs.items() %}<tr><td class="mute">{{ spec_label(k) }}</td><td>{{ v }}</td></tr>{% endfor %}</table></div>{% endif %}
   </div>
+
   <div>
     <h1>{{ p.title }}</h1>
     <p class="mute">{{ p.brand }}{% if p.model_number %} · Model {{ p.model_number }}{% endif %}</p>
+
     {% if pickers %}{% for label, choices in pickers %}<div class="variant-pick"><div class="lbl">{{ label }}</div><div class="variants">
-      {% for val, vid, on, ok in choices %}<a href="?v={{ vid }}" class="{{ 'on' if on }}{{ ' na' if not ok and not on }}" {% if not ok and not on %}title="Not available in this combination"{% endif %}>{{ val }}</a>{% endfor %}
+      {% for val, vid, on, ok in choices %}<a href="?v={{ vid }}{% if selected_card %}&card={{ selected_card }}{% endif %}" class="{{ 'on' if on }}{{ ' na' if not ok and not on }}" {% if not ok and not on %}title="Not available in this combination"{% endif %}>{{ val }}</a>{% endfor %}
     </div></div>{% endfor %}
     {% elif variants|length > 1 %}<div class="variants" aria-label="Variants">
-      {% for x in variants %}<a href="?v={{ x.id }}" class="{{ 'on' if variant and x.id == variant.id }}">{{ x.label }} <span class="mute small">({{ counts[x.id] }})</span></a>{% endfor %}
+      {% for x in variants %}<a href="?v={{ x.id }}{% if selected_card %}&card={{ selected_card }}{% endif %}" class="{{ 'on' if variant and x.id == variant.id }}">{{ x.label }} <span class="mute small">({{ counts[x.id] }})</span></a>{% endfor %}
     </div>{% endif %}
+
     <div class="card" style="display:flex;flex-wrap:wrap;gap:18px;align-items:center">
       <div><span class="small mute">{{ _("Lowest price") }}</span><div class="price" style="font-size:26px">{{ current_low|pkr }}</div>
         <span class="small">{{ offers|length }} {{ _("stores") }}</span></div>
+      {% if selected_card and net_low and net_low < current_low %}
+      <div><span class="small mute">With {{ bank_cards[selected_card].short }}</span>
+        <div class="price" style="font-size:24px;color:var(--good)">{{ net_low|pkr }}</div>
+        <span class="small" style="color:var(--good)">Save {{ (current_low - net_low)|pkr }}</span></div>
+      {% endif %}
       {% if deal %}<div><span class="badge {{ deal.tone }}">{{ deal.label }} (Truth Score: {{ deal.score }}/100)</span><div class="small mute">30-day typical price {{ deal.median|pkr }} · 30d low {{ deal.low|pkr }}</div></div>{% endif %}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">
         <a class="btn small" href="/compare?ids={{ p.id }}">⚖ Compare specs</a>
@@ -31,22 +48,72 @@
       </div>
     </div>
 
+    {% if verdict %}
+    <div class="verdict-box {{ verdict.tone }}">
+      <div style="font-size:22px;line-height:1">{{ verdict.icon }}</div>
+      <div>
+        <div><b>AI Buying Verdict: {{ verdict.verdict }}</b> — {{ verdict.headline }}</div>
+        <div class="small mute" style="margin-top:2px">{{ verdict.reason }}</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if pta_info %}
+    <div class="card" style="margin-top:12px;border-left:4px solid var(--warn)">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <b>📱 Non-PTA / JV True Landed Cost Alert (FBR DIRBS Estimate)</b>
+        <a class="small" href="/pta-calculator?device_price={{ current_low|int }}">Open full PTA Calculator →</a>
+      </div>
+      <p class="small mute" style="margin:6px 0">This variant is <b>{{ variant.region }}</b> (SIMs work ~60 days without PTA approval). Including official FBR DIRBS tax:</p>
+      <div class="cols" style="margin-top:8px">
+        <div class="kpi"><b>{{ pta_info.landed_passport|pkr }}</b><span>With Passport Tax (+{{ pta_info.passport_tax|pkr }})</span></div>
+        <div class="kpi"><b>{{ pta_info.landed_cnic|pkr }}</b><span>With CNIC Tax (+{{ pta_info.cnic_tax|pkr }})</span></div>
+        {% if pta_info.official_pta_low %}
+        <div class="kpi"><b>{{ pta_info.official_pta_low|pkr }}</b><span>Official PTA-Approved Variant Live Price</span></div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card" style="margin-top:14px;padding:12px 14px">
+      <div class="small" style="font-weight:700;margin-bottom:6px">💳 My Wallet Optimizer — Click your card/wallet to see instant net checkout price:</div>
+      <div class="chips">
+        <a class="chip {{ 'on' if not selected_card }}" href="?v={{ variant.id if variant else '' }}&cond={{ cond }}&sort={{ sort }}">Standard Price</a>
+        {% for cslug, cinfo in bank_cards.items() %}
+        <a class="chip {{ 'on' if selected_card == cslug }}" href="?v={{ variant.id if variant else '' }}&cond={{ cond }}&card={{ cslug }}">{{ cinfo.short }}</a>
+        {% endfor %}
+      </div>
+    </div>
+
     <h2>{{ _("Offers") }} <span class="small mute">for {{ variant.label if variant else '' }}</span></h2>
-    {% if conditions|length > 1 %}<div class="chips" style="margin-bottom:8px">{% for c in conditions %}<a class="chip {{ 'on' if c == cond }}" href="?v={{ variant.id }}&cond={{ c }}&sort={{ sort }}">{{ c|replace('_',' ')|capitalize }}</a>{% endfor %}</div>{% endif %}
+    {% if conditions|length > 1 %}<div class="chips" style="margin-bottom:8px">{% for c in conditions %}<a class="chip {{ 'on' if c == cond }}" href="?v={{ variant.id }}&cond={{ c }}&sort={{ sort }}{% if selected_card %}&card={{ selected_card }}{% endif %}">{{ c|replace('_',' ')|capitalize }}</a>{% endfor %}</div>{% endif %}
     <p class="small">Sort:
-      <a href="?v={{ variant.id }}&cond={{ cond }}&sort=delivered" {{ 'style=font-weight:700' if sort=='delivered' }}>lowest delivered price</a> ·
-      <a href="?v={{ variant.id }}&cond={{ cond }}&sort=item" {{ 'style=font-weight:700' if sort=='item' }}>lowest item price</a> ·
-      <a href="?v={{ variant.id }}&cond={{ cond }}&sort=newest" {{ 'style=font-weight:700' if sort=='newest' }}>newest update</a></p>
+      <a href="?v={{ variant.id }}&cond={{ cond }}&sort=delivered{% if selected_card %}&card={{ selected_card }}{% endif %}" {{ 'style=font-weight:700' if sort=='delivered' }}>lowest delivered price</a> ·
+      <a href="?v={{ variant.id }}&cond={{ cond }}&sort=item{% if selected_card %}&card={{ selected_card }}{% endif %}" {{ 'style=font-weight:700' if sort=='item' }}>lowest item price</a> ·
+      <a href="?v={{ variant.id }}&cond={{ cond }}&sort=newest{% if selected_card %}&card={{ selected_card }}{% endif %}" {{ 'style=font-weight:700' if sort=='newest' }}>newest update</a></p>
+
     {% if offers %}
     <div class="tablewrap"><table class="offers">
-      <thead><tr><th>{{ _("Store") }}</th><th>{{ _("Price") }}</th><th>{{ _("Shipping") }}</th><th>{{ _("Warranty") }} / condition</th><th>{{ _("Stock") }}</th><th></th></tr></thead>
-      <tbody>{% for o in offers %}{% set fr = freshness(o, p.category.slug if p.category else None) %}{% set aud = audits.get(o.id) if audits else None %}
+      <thead><tr><th>{{ _("Store") }} & Trust</th><th>{{ _("Price") }}{% if selected_card %} / Card Net{% endif %}</th><th>{{ _("Shipping") }}</th><th>{{ _("Warranty") }} / condition</th><th>{{ _("Stock") }}</th><th></th></tr></thead>
+      <tbody>{% for o in offers %}{% set fr = freshness(o, p.category.slug if p.category else None) %}{% set aud = audits.get(o.id) if audits else None %}{% set nc = net_calcs.get(o.id) if net_calcs else None %}
       <tr class="{{ 'offer-best' if loop.first and o.stock_status != 'out_of_stock' }}">
         <td><a href="/store/{{ o.retailer.slug }}"><b>{{ o.retailer.name }}</b></a>
           {% if o.retailer.verified %}<span class="badge blue" title="Business identity and contact details verified">✔ Verified</span>{% endif %}
+          {% if o.retailer.trust_score %}<span class="badge good" title="SaleRadar Store Trust Score">★ {{ o.retailer.trust_score }}/10</span>{% endif %}
           <div class="small mute">{{ o.retailer_title }}</div>
-          {% if o.promo_code %}<div style="margin-top:4px"><span class="badge spon" title="Apply this voucher code at store checkout">🏷 Code: {{ o.promo_code }}</span></div>{% endif %}</td>
-        <td><b>{{ o.price|pkr }}</b>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+            {% if o.retailer.open_parcel %}<span class="badge good" title="Inspect package before paying courier">📦 Open Parcel</span>{% endif %}
+            {% if o.retailer.cod_available %}<span class="badge" title="Cash on Delivery supported">💵 COD</span>{% endif %}
+            {% if o.promo_code %}<span class="badge spon" title="Apply this voucher code at store checkout">🏷 Code: {{ o.promo_code }}</span>{% endif %}
+          </div></td>
+        <td>
+          {% if nc and (nc.card_applied or nc.promo_discount > 0) %}
+            <b style="color:var(--good);font-size:17px">{{ nc.net_item_price|pkr }}</b>
+            <div class="small mute">List: <s>{{ o.price|pkr }}</s> (Save {{ nc.total_discount|pkr }})</div>
+            {% if nc.card_applied %}<div class="small"><span class="badge blue">✔ {{ nc.card.short }} applied</span></div>{% endif %}
+          {% else %}
+            <b>{{ o.price|pkr }}</b>
+          {% endif %}
           {% if o.original_price and o.original_price > o.price %}<div class="small mute">Store 'was': <s>{{ o.original_price|pkr }}</s> (-{{ o.claimed_discount_pct }}%)</div>{% endif %}
           {% if aud and aud.badge %}<div style="margin-top:3px"><span class="badge {{ aud.tone }}">{{ aud.badge }}</span></div>{% endif %}
           {% if o.delivered_price is not none and o.shipping_cost > 0 %}<div class="small mute">{{ o.delivered_price|pkr }} delivered</div>{% endif %}</td>
@@ -66,6 +133,22 @@
     {% if variant and variant.size %}<p class="small mute">Sizes can differ between brands. Check the size chart on the store's website before buying.</p>{% endif %}
     <p class="disclaimer">Ranked by {{ 'lowest delivered price (offers with unknown shipping are listed after, by item price)' if sort=='delivered' else ('lowest item price' if sort=='item' else 'most recent update') }}. Ranking is never affected by advertising or commission. {{ _("We are not the seller. Prices and stock can change; always verify at the retailer's checkout.") }} <a href="/page/affiliate-disclosure">Some links may earn us a commission.</a></p>
     {% else %}<div class="card"><p>No live offers for this variant right now.</p></div>{% endif %}
+
+    {% if installments %}
+    <h2>📅 Buy Now, Pay Later & Installment Plans</h2>
+    <div class="cols">
+      {% for pl in installments %}
+      <div class="card" style="padding:12px">
+        <div style="display:flex;justify-content:space-between;gap:6px;align-items:center">
+          <b>{{ pl.provider }}</b>
+          <span class="badge {{ 'good' if pl.shariah else 'blue' }}">{{ pl.badge }}</span>
+        </div>
+        <div class="price" style="margin-top:6px">{{ pl.monthly|pkr }}<span class="small mute"> /mo × {{ pl.months }}</span></div>
+        <div class="small mute" style="margin-top:4px">{{ pl.markup_note }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
 
     {% if sponsored %}<div class="card" style="margin-top:14px;border-color:var(--spon)"><span class="badge spon">{{ _("Sponsored") }}</span>
       {% for s in sponsored %}<p><b>{{ s.retailer.name }}</b>: {{ s.offer.retailer_title }}: <b>{{ s.offer.price|pkr }}</b>

@@ -57,6 +57,11 @@ _NEW_COLUMNS = [
     ("categories", "group", "VARCHAR(60) DEFAULT 'Other'"),
     ("offers", "original_price", "NUMERIC(12, 2)"),
     ("offers", "promo_code", "VARCHAR(80)"),
+    ("retailers", "trust_score", "FLOAT DEFAULT 9.0"),
+    ("retailers", "cod_available", "BOOLEAN DEFAULT TRUE"),
+    ("retailers", "open_parcel", "BOOLEAN DEFAULT FALSE"),
+    ("retailers", "bank_partners", "VARCHAR(300)"),
+    ("retailers", "bnpl_partners", "VARCHAR(200)"),
 ]
 
 

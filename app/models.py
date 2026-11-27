@@ -114,6 +114,11 @@ class Retailer(Base):
     affiliate_status: Mapped[str] = mapped_column(String(30), default="none")
     affiliate_param: Mapped[str | None] = mapped_column(String(200))  # e.g. "ref=saleradar"
     plan: Mapped[str] = mapped_column(String(20), default="free")  # free|pro
+    trust_score: Mapped[float | None] = mapped_column(default=9.0)  # 0.0 - 10.0 verified shopper trust
+    cod_available: Mapped[bool] = mapped_column(Boolean, default=True)
+    open_parcel: Mapped[bool] = mapped_column(Boolean, default=False)  # Open-parcel before payment
+    bank_partners: Mapped[str | None] = mapped_column(String(300))  # e.g. "hbl,alfalah,nayapay,jazzcash"
+    bnpl_partners: Mapped[str | None] = mapped_column(String(200))  # e.g. "baadmay,alfamall"
     last_import_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
 

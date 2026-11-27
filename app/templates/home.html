@@ -1,49 +1,77 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="hero">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <span class="badge" style="background:rgba(255,255,255,.18);color:#fff">🇵🇰 Pakistan's #1 Price Truth & Deal Engine</span>
+    <span class="badge" style="background:rgba(255,255,255,.18);color:#fff">✔ Fake Markdown Detector</span>
+    <span class="badge" style="background:rgba(255,255,255,.18);color:#fff">💳 Bank Card + BNPL Optimizer</span>
+  </div>
   <h1>{{ _("Compare real prices from verified Pakistani stores") }}</h1>
-  <p>Phones, laptops, TVs, clothing, shoes and more. Delivered price, sizes, warranty, stock and the time each price was last checked, side by side.</p>
+  <p>Phones, laptops, earbuds, ACs, Khaadi, Sapphire, Outfitters & more — ranked by real delivered price, with 30-day fake-sale auditing, FBR PTA tax calculator, and HBL / Alfalah / BaadMay net price optimizer.</p>
   <form action="/search"><input name="q" placeholder="{{ _('Search phones, laptops, clothes, shoes…') }}" aria-label="Search" autofocus><button>{{ _("Search") }}</button></form>
 </section>
+
+<div class="cols" style="margin-bottom:24px">
+  <a class="card" href="/bank-deals" style="color:inherit;text-decoration:none;border-left:4px solid var(--brand2)">
+    <b>💳 Bank Card & Wallet Optimizer</b>
+    <div class="small mute" style="margin-top:4px">Have HBL, Alfalah, Meezan, NayaPay or JazzCash? See instant net prices after card discounts.</div>
+  </a>
+  <a class="card" href="/installments" style="color:inherit;text-decoration:none;border-left:4px solid var(--good)">
+    <b>📅 Buy Now, Pay Later (No Credit Card)</b>
+    <div class="small mute" style="margin-top:4px">Split into 3x via BaadMay / KalPay Halal or 12m CNIC QistBazaar plans within your monthly budget.</div>
+  </a>
+  <a class="card" href="/pta-calculator" style="color:inherit;text-decoration:none;border-left:4px solid var(--warn)">
+    <b>📱 Official FBR PTA Tax Calculator</b>
+    <div class="small mute" style="margin-top:4px">Compare Passport vs CNIC DIRBS tax & true landed cost before buying a Non-PTA / JV phone.</div>
+  </a>
+  <a class="card" href="/advisor" style="color:inherit;text-decoration:none;border-left:4px solid var(--spon)">
+    <b>🤖 AI Budget Shopping Concierge</b>
+    <div class="small mute" style="margin-top:4px">Enter your PKR budget & priority (Gaming, Camera, Office) to get top truth-scored picks.</div>
+  </a>
+</div>
+
 {% if deals %}
-<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:24px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:12px">
   <h2 style="margin:0">🔥 {{ _("Verified price drops") }} <span class="small mute">(vs 30-day observed median)</span></h2>
-  <a class="small" href="/deals">All live deals →</a>
+  <a class="small" href="/deals">View all live deals →</a>
 </div>
 <div class="grid" style="margin-top:12px">
   {% for d in deals %}{% set c = d.card %}
   <a class="pcard" href="/p/{{ c.product.slug }}?v={{ d.variant.id }}">
-    <div class="img">{% if c.product.image_url %}<img loading="lazy" src="{{ c.product.image_url }}" alt="{{ c.product.title }}">{% else %}<img loading="lazy" src="/static/placeholder.svg" alt="">{% endif %}</div>
+    <div class="img">{% if c.product.image_url %}<img loading="lazy" src="{{ c.product.image_url }}" alt="{{ c.product.title }}" onerror="this.onerror=null;this.src='/static/placeholder.svg'">{% else %}<img loading="lazy" src="/static/placeholder.svg" alt="">{% endif %}</div>
     <div class="body">
       <div style="display:flex;justify-content:space-between;gap:4px;flex-wrap:wrap">
         <span class="badge good">{% if d.drop_pct >= 1 %}↓ {{ d.drop_pct }}% below median{% else %}{{ d.deal.label }}{% endif %}</span>
-        <span class="badge blue">Score {{ d.deal.score }}/100</span>
+        <span class="badge blue">Truth {{ d.deal.score }}/100</span>
       </div>
       <span class="small mute">{{ c.product.brand }} · {{ d.variant.label }}</span>
       <span class="title">{{ c.product.title }}</span>
       <span class="price">{{ c.lowest|pkr }}</span>
-      {% if d.savings > 0 %}<span class="small" style="color:var(--good)">Save {{ d.savings|pkr }} vs 30d typical ({{ d.deal.median|pkr }})</span>{% endif %}
+      {% if d.savings > 0 %}<span class="small" style="color:var(--good);font-weight:600">Save {{ d.savings|pkr }} vs 30d typical ({{ d.deal.median|pkr }})</span>{% endif %}
       <span class="small mute">{{ c.stores }} {{ _("stores") }}</span>
     </div>
   </a>
   {% endfor %}
 </div>
 {% endif %}
+
 {% if groups %}<h2>{{ _("Categories") }}</h2>
 <div class="cols">{% for g, cs in groups %}<div class="card cat-group" style="margin-top:0"><h3>{{ g }}</h3>
 <div class="chips">{% for c in cs %}<a class="chip" href="/c/{{ c.slug }}">{{ c.name }}</a>{% endfor %}</div></div>{% endfor %}</div>{% endif %}
+
 {% if popular %}<h2>{{ _("Popular comparisons") }}</h2>
 <div class="grid">{% for c in popular %}{% include "_card.html" %}{% endfor %}</div>{% endif %}
+
 <div class="cols" style="margin-top:28px">
   <div class="card"><h3>{{ _("Verified stores") }}</h3>
-    {% if retailers %}<div class="chips">{% for r in retailers %}<a class="chip" href="/store/{{ r.slug }}">✔ {{ r.name }}</a>{% endfor %}</div>
+    {% if retailers %}<div class="chips">{% for r in retailers %}<a class="chip" href="/store/{{ r.slug }}">✔ {{ r.name }}{% if r.open_parcel %} 📦{% endif %}</a>{% endfor %}</div>
     {% else %}<p class="mute">Stores are being verified.</p>{% endif %}
-    <p class="small"><a href="/stores">All stores →</a></p></div>
-  <div class="card"><h3>{{ _("How prices are checked") }}</h3>
-    <p class="small">Prices come from the stores themselves (feeds and sheets they share with us) or are checked by our team. Every price shows when it was last checked. Old prices are marked or hidden. Offers are ranked by lowest price, never by who pays us.</p>
-    <a class="small" href="/page/how-prices-are-checked">Read more →</a></div>
-  <div class="card"><h3>Own a store?</h3>
-    <p class="small">List your products for free, get traffic reports and see how your prices compare.</p>
+    <p class="small"><a href="/stores">All verified stores & trust scores →</a></p></div>
+  <div class="card"><h3>Why shoppers choose SaleRadar over marketplaces</h3>
+    <p class="small">Unlike commission-biased listings or fake "Up to 50% OFF" banners, SaleRadar audits every price against 30-day observed history, stacks your Bank/Wallet discount, calculates BNPL & FBR PTA taxes, and highlights Open-Parcel stores.</p>
+    <a class="small" href="/page/how-prices-are-checked">How our Deal Truth Engine works →</a></div>
+  <div class="card"><h3>Own an online store in Pakistan?</h3>
+    <p class="small">List your products for free, connect your Shopify or Google Sheet feed, and monitor competitor pricing in real time.</p>
     <a class="btn primary small" href="/merchants">{{ _("List your store") }}</a></div>
 </div>
 {% endblock %}

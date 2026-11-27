@@ -394,3 +394,133 @@ def facets(cards: list[ProductCard], keys: list[str] | None = None):
             vals = sorted(((display[k], n) for k, n in counts.items()), key=lambda x: value_sort_key(key, x[0]))
             out.append((key, filter_label(key), vals))
     return {"brands": brands, "groups": out}
+
+
+def bank_card_deals(db: Session, card_slug: str = "hbl", category_slug: str = "", limit: int = 24) -> list[dict]:
+    """Finds products with the highest total stacked savings (Bank Card + Promo Voucher)
+    for a shopper's chosen Pakistani bank card or mobile wallet."""
+    from .pakistan_market import net_price_with_card
+    cat = db.scalar(select(Category).where(Category.slug == category_slug)) if category_slug else None
+    cards, _, _ = search_products(db, "", category=cat, in_stock=True, limit=250)
+    results = []
+    for c in cards:
+        best_net = None
+        best_offer = None
+        best_calc = None
+        for o in c.offers:
+            if o.stock_status == "out_of_stock" or o.condition != "new":
+                continue
+            calc = net_price_with_card(o, card_slug)
+            if calc["card_applied"] and (best_net is None or calc["net_item_price"] < best_net):
+                best_net = calc["net_item_price"]
+                best_offer = o
+                best_calc = calc
+        if best_offer and best_calc and best_calc["total_discount"] > 0:
+            results.append({
+                "card": c,
+                "offer": best_offer,
+                "calc": best_calc,
+                "net_price": best_net,
+                "saved": best_calc["total_discount"],
+            })
+    results.sort(key=lambda x: (-float(x["saved"]), float(x["net_price"])))
+    return results[:limit]
+
+
+def smart_budget_advisor(
+    db: Session,
+    budget_pkr: Decimal | None = None,
+    category_slug: str = "",
+    priority: str = "value",
+    card_slug: str = "",
+    limit: int = 6,
+) -> list[dict]:
+    """Scores and recommends the best products matching a shopper's PKR budget,
+    category, use-case priority, and optional Pakistani bank card."""
+    from .pakistan_market import ai_buy_verdict, calculate_installments, net_price_with_card
+    cat = db.scalar(select(Category).where(Category.slug == category_slug)) if category_slug else None
+    cards, _, _ = search_products(db, "", category=cat, in_stock=True, limit=300)
+    picks = []
+    prio = (priority or "value").lower()
+
+    for c in cards:
+        new_offers = [o for o in c.offers if o.stock_status != "out_of_stock" and o.condition == "new"]
+        if not new_offers:
+            new_offers = [o for o in c.offers if o.stock_status != "out_of_stock"]
+        if not new_offers:
+            continue
+
+        # Best effective offer considering selected bank card
+        best_o = None
+        best_calc = None
+        for o in new_offers:
+            calc = net_price_with_card(o, card_slug)
+            if best_o is None or calc["net_item_price"] < best_calc["net_item_price"]:
+                best_o, best_calc = o, calc
+
+        eff_price = best_calc["net_item_price"]
+        if budget_pkr is not None and eff_price > budget_pkr:
+            continue
+
+        # Variant & deal truth
+        best_v = next((v for v in c.product.variants if v.id == best_o.variant_id), c.product.variants[0])
+        hist = price_history(db, best_v, days=45)
+        dq = deal_quality(c.lowest, hist)
+        verdict = ai_buy_verdict(c.lowest, dq, c.stores)
+
+        score = float(dq["score"] if dq else 70)
+        reasons = []
+        if dq and dq["drop_pct"] >= 2.0:
+            score += min(dq["drop_pct"] * 1.5, 15)
+            reasons.append(f"Trading {dq['drop_pct']}% below its 30-day typical price")
+        if best_calc["total_discount"] > 0:
+            score += 8
+            reasons.append(f"Save extra Rs {int(best_calc['total_discount']):,} with promo/bank discount")
+        if getattr(best_o.retailer, "open_parcel", False):
+            score += 4
+            reasons.append(f"Open-Parcel delivery available at {best_o.retailer.name}")
+
+        specs_blob = " ".join(f"{k}:{v}" for k, v in (c.product.specs or {}).items()).lower()
+        title_blob = f"{c.product.title} {best_v.label}".lower()
+        if prio == "gaming":
+            if any(x in specs_blob or x in title_blob for x in ("120hz", "144hz", "rtx", "snapdragon", "dimensity", "m2", "16gb", "anc")):
+                score += 14
+                reasons.append("High-refresh / performance hardware suited for gaming & heavy multitasking")
+        elif prio == "camera":
+            if any(x in specs_blob or x in title_blob for x in ("50 mp", "108 mp", "200 mp", "48 mp", "iphone", "pixel", "galaxy s")):
+                score += 14
+                reasons.append("Strong camera sensor & image processing in this budget tier")
+        elif prio == "battery":
+            if any(x in specs_blob or x in title_blob for x in ("5000 mah", "20000 mah", "dc inverter", "m2")):
+                score += 12
+                reasons.append("All-day battery / high energy efficiency")
+        elif prio == "work":
+            if any(x in specs_blob or x in title_blob for x in ("core i5", "core i7", "ryzen", "m2", "thinkpad", "pta approved", "anc")):
+                score += 12
+                reasons.append("Reliable productivity & remote-work configuration")
+
+        if budget_pkr and budget_pkr > 0:
+            # Prefer utilizing 55%-98% of budget so we don't suggest a Rs 900 item for a Rs 150,000 phone budget
+            utilization = float(eff_price) / float(budget_pkr)
+            if 0.50 <= utilization <= 1.0:
+                score += 10
+
+        if not reasons:
+            reasons.append(f"Verified across {c.stores} stores with strong shopper trust")
+
+        installments = calculate_installments(eff_price, c.product.category.slug if c.product.category else None)
+        picks.append({
+            "card": c,
+            "variant": best_v,
+            "offer": best_o,
+            "calc": best_calc,
+            "effective_price": eff_price,
+            "deal": dq,
+            "verdict": verdict,
+            "score": min(99, int(round(score))),
+            "reasons": reasons[:3],
+            "lowest_monthly": installments[0]["monthly"] if installments else None,
+        })
+
+    picks.sort(key=lambda x: (-x["score"], float(x["effective_price"])))
+    return picks[:limit]

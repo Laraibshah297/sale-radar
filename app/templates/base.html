@@ -19,13 +19,21 @@
   </form>
   <nav class="links">
     <a href="/deals">🔥 {{ _("Live Deals") }}</a>
+    <a class="hide-sm" href="/advisor">🤖 {{ _("Smart Advisor") }}</a>
     <a class="hide-sm" href="/compare">⚖ {{ _("Compare") }}</a>
-    <a class="hide-sm" href="/stores">{{ _("Verified stores") }}</a>
-    <a class="hide-sm" href="/merchants">{{ _("List your store") }}</a>
+    <a href="/watchlist">❤ {{ _("Saved") }}{% if saved_count %} ({{ saved_count }}){% endif %}</a>
     {% if lang == 'ur' %}<a href="/lang/en">English</a>{% else %}<a href="/lang/ur">اردو</a>{% endif %}
     {% if user %}<a href="{{ '/merchant' if user.role == 'merchant' else '/admin' }}">Dashboard</a>{% endif %}
   </nav>
 </div></header>
+<div class="subbar"><div class="wrap">
+  <a href="/bank-deals">💳 {{ _("Bank Discounts") }} (HBL, Alfalah, Meezan, JazzCash)</a>
+  <a href="/installments">📅 {{ _("Installments") }} (BaadMay 3x, KalPay, 0% EMI)</a>
+  <a href="/pta-calculator">📱 {{ _("PTA Tax") }} Calculator</a>
+  <a href="/advisor">🤖 Budget Shopping Concierge</a>
+  <a href="/stores">✔ {{ _("Verified stores") }}</a>
+  <a href="/merchants">🏪 {{ _("List your store") }}</a>
+</div></div>
 <main><div class="wrap">
 {% if flash %}<div class="flash {{ 'err' if flash.kind == 'err' else '' }}" role="status">{{ flash.msg }}</div>{% endif %}
 {% block content %}{% endblock %}
